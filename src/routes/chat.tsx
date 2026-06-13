@@ -4,13 +4,13 @@ import { DefaultChatTransport } from "ai";
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Brain, Zap, Code, Sparkles, Gauge, LayoutPanelLeft } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
-import { getApiBaseUrl } from "@/lib/api-config";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { useAppContext } from "@/components/lord/AppContextProvider";
 import { cn } from "@/lib/utils";
 import type { LordMode } from "@/lib/lord-config";
 import { ChatSidebar } from "@/components/lord/ChatSidebar";
-import { getConversationFn } from "@/lib/chat-history.functions";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { uid, type Conversation } from "@/lib/lord-store";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({ meta: [{ title: "LORD — Chat" }, { name: "description", content: "Talk to LORD AI." }] }),
@@ -26,20 +26,22 @@ const MODES: Array<{ id: LordMode; label: string; icon: React.ComponentType<{ cl
 ];
 
 function ChatPage() {
-  const [mode, setMode] = useState<LordMode>("balanced");
+  const [defaultMode] = usePersistedState<LordMode>("settings.mode", "balanced");
+  const [mode, setMode] = useState<LordMode>(defaultMode);
   const [input, setInput] = useState("");
-  const [conversationId, setConversationId] = useState<string>(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [conversationId, setConversationId] = useState<string>(() => uid());
+  const [conversations, setConversations] = usePersistedState<Conversation[]>("conversations", []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
   
   const { messages, setMessages, sendMessage, status, error } = useChat({
+    id: conversationId,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ 
         mode,
-        conversationId,
         context: {
           page: currentRoute,
           workflow: activeWorkflow,
@@ -48,23 +50,39 @@ function ChatPage() {
         }
       }),
     }),
+    onFinish: ({ messages: completed, isError }) => {
+      if (isError) return;
+      const storedMessages = completed.flatMap((message) => {
+        const content = message.parts.filter((part) => part.type === "text").map((part) => part.text).join("").trim();
+        return content && (message.role === "user" || message.role === "assistant")
+          ? [{ id: message.id, role: message.role, content }]
+          : [];
+      });
+      const firstUser = storedMessages.find((message) => message.role === "user")?.content ?? "New conversation";
+      const conversation: Conversation = { id: conversationId, title: firstUser.slice(0, 60), updatedAt: Date.now(), messages: storedMessages };
+      setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversationId)]);
+    },
   });
 
-  const loadConversation = async (id: string) => {
+  const loadConversation = (id: string) => {
+    const conversation = conversations.find((item) => item.id === id);
+    if (!conversation) return;
     setConversationId(id);
-    const data = (await getConversationFn({ data: id })) as { messages?: Array<{ id: string; role: string; content: string }> } | null;
-    if (data?.messages) {
-      setMessages(data.messages.map((m) => ({
+    setMessages(conversation.messages.map((m) => ({
         id: m.id,
-        role: m.role as "user" | "assistant" | "system",
+        role: m.role,
         parts: [{ type: "text", text: m.content }]
       })));
-    }
   };
 
   const startNewChat = () => {
-    setConversationId(Math.random().toString(36).slice(2) + Date.now().toString(36));
+    setConversationId(uid());
     setMessages([]);
+  };
+
+  const deleteConversation = (id: string) => {
+    setConversations((current) => current.filter((item) => item.id !== id));
+    if (id === conversationId) startNewChat();
   };
 
   useEffect(() => {
@@ -87,7 +105,7 @@ function ChatPage() {
         {/* Sidebar */}
         {sidebarOpen && (
           <div className="hidden w-72 flex-shrink-0 lg:block">
-            <ChatSidebar currentId={conversationId} onSelect={loadConversation} onNew={startNewChat} />
+            <ChatSidebar currentId={conversationId} onSelect={loadConversation} onNew={startNewChat} onDelete={deleteConversation} conversations={conversations} />
           </div>
         )}
 

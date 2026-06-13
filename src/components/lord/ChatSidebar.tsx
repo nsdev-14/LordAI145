@@ -1,41 +1,17 @@
-import { useState, useEffect } from "react";
 import { Plus, Trash2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HudPanel } from "./HudPanel";
-import { getConversationsFn } from "@/lib/chat-history.functions";
+import type { Conversation } from "@/lib/lord-store";
 
 interface ChatSidebarProps {
   currentId: string;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onDelete: (id: string) => void;
+  conversations: Conversation[];
 }
 
-interface Conversation {
-  id: string;
-  title: string;
-  updatedAt: string;
-}
-
-export function ChatSidebar({ currentId, onSelect, onNew }: ChatSidebarProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadConversations = async () => {
-      try {
-        const result = await getConversationsFn();
-        if (result.conversations) {
-          setConversations(result.conversations);
-        }
-      } catch (error) {
-        console.error("Failed to load conversations:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadConversations();
-  }, []);
-
+export function ChatSidebar({ currentId, onSelect, onNew, onDelete, conversations }: ChatSidebarProps) {
   return (
     <HudPanel title="Conversations" subtitle="Chat history" className="flex flex-col gap-3 h-full">
       <button
@@ -47,9 +23,7 @@ export function ChatSidebar({ currentId, onSelect, onNew }: ChatSidebarProps) {
       </button>
 
       <div className="flex-1 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
-        {loading ? (
-          <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
-        ) : conversations.length === 0 ? (
+        {conversations.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">No conversations yet</p>
         ) : (
           conversations.map((conv) => (
@@ -62,16 +36,19 @@ export function ChatSidebar({ currentId, onSelect, onNew }: ChatSidebarProps) {
                   : "border-border/40 bg-background/20 hover:bg-background/40"
               )}
             >
-              <div onClick={() => onSelect(conv.id)} className="flex items-start gap-2 justify-between">
+              <div className="flex items-start gap-2 justify-between">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
+                  <button onClick={() => onSelect(conv.id)} className="flex w-full items-center gap-1 text-left">
                     <MessageSquare className="h-3 w-3 flex-shrink-0" />
                     <p className="truncate font-medium">{conv.title || "Untitled"}</p>
-                  </div>
+                  </button>
                   <p className="text-[10px] text-muted-foreground">
                     {new Date(conv.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
+                <button onClick={() => onDelete(conv.id)} aria-label={`Delete ${conv.title}`} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           ))
