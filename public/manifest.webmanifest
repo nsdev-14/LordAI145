@@ -1,0 +1,14 @@
+{
+  "name": "LORD AI",
+  "short_name": "LORD",
+  "description": "Legendary Omni-intelligent Responsive Director — your personal AI.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "icons": [
+    { "src": "/lord-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
