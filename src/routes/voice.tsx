@@ -15,17 +15,24 @@ function VoicePage() {
   const { enabled, status, transcript, reply, supported, toggle } = useWakeWord();
 
   const ringState =
-    status === "thinking" ? "processing" :
-    status === "speaking" ? "speaking" :
-    status === "listening" || status === "heard" ? "listening" : "idle";
+    status === "thinking"
+      ? "processing"
+      : status === "speaking"
+        ? "speaking"
+        : status === "listening" || status === "heard"
+          ? "listening"
+          : "idle";
 
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 text-center">
-          <h1 className="font-display text-3xl md:text-4xl tracking-wide gradient-text text-glow">Voice Interface</h1>
+          <h1 className="font-display text-3xl md:text-4xl tracking-wide gradient-text text-glow">
+            Voice Interface
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Say "<span className="text-primary">Hey Lord</span>" anywhere in the app, followed by your directive.
+            Say "<span className="text-primary">Hey Lord</span>" anywhere in the app, followed by
+            your directive.
           </p>
         </div>
 
@@ -57,10 +64,13 @@ function VoicePage() {
           </button>
 
           {!supported && (
-            <p className="text-xs text-destructive">Speech recognition unsupported in this browser. Try Chrome or Safari.</p>
+            <p className="text-xs text-destructive">
+              Speech recognition unsupported in this browser. Try Chrome or Safari.
+            </p>
           )}
           <p className="max-w-md text-center text-[11px] text-muted-foreground">
-            Web limitation: LORD listens only while this app is open and in the foreground. For lock-screen wake like Siri, a native build is required.
+            Web limitation: LORD listens only while this app is open and in the foreground. For
+            lock-screen wake like Siri, a native build is required.
           </p>
         </div>
 
@@ -70,7 +80,11 @@ function VoicePage() {
               {transcript || <span className="text-muted-foreground">—</span>}
             </div>
           </HudPanel>
-          <HudPanel title="Response" subtitle="LORD reply" action={reply && <Volume2 className="h-4 w-4 text-primary" />}>
+          <HudPanel
+            title="Response"
+            subtitle="LORD reply"
+            action={reply && <Volume2 className="h-4 w-4 text-primary" />}
+          >
             <div className="min-h-[120px] text-sm whitespace-pre-wrap">
               {reply || <span className="text-muted-foreground">—</span>}
             </div>

@@ -68,7 +68,7 @@
   --muted: oklch(0.22 0.04 250);
   --muted-foreground: oklch(0.68 0.04 230);
 
-  --accent: oklch(0.72 0.20 290);
+  --accent: oklch(0.72 0.2 290);
   --accent-foreground: oklch(0.12 0.04 250);
 
   --destructive: oklch(0.65 0.24 25);
@@ -80,13 +80,17 @@
 
   /* HUD semantic */
   --hud: oklch(0.82 0.18 210);
-  --hud-glow: oklch(0.85 0.20 200);
-  --hud-warn: oklch(0.80 0.18 70);
+  --hud-glow: oklch(0.85 0.2 200);
+  --hud-warn: oklch(0.8 0.18 70);
   --hud-success: oklch(0.78 0.18 150);
 
   /* Gradients */
-  --gradient-hud: linear-gradient(135deg, oklch(0.82 0.18 210), oklch(0.72 0.20 290));
-  --gradient-radial: radial-gradient(circle at 50% 50%, oklch(0.82 0.18 210 / 0.3), transparent 60%);
+  --gradient-hud: linear-gradient(135deg, oklch(0.82 0.18 210), oklch(0.72 0.2 290));
+  --gradient-radial: radial-gradient(
+    circle at 50% 50%,
+    oklch(0.82 0.18 210 / 0.3),
+    transparent 60%
+  );
   --gradient-panel: linear-gradient(180deg, oklch(0.22 0.05 250 / 0.7), oklch(0.16 0.04 250 / 0.4));
   --gradient-glow: linear-gradient(90deg, transparent, oklch(0.82 0.18 210 / 0.6), transparent);
 
@@ -105,7 +109,9 @@
   * {
     border-color: var(--color-border);
   }
-  html, body, #root {
+  html,
+  body,
+  #root {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -113,11 +119,14 @@
   }
   body {
     background-image:
-      radial-gradient(ellipse at top, oklch(0.82 0.18 210 / 0.10), transparent 60%),
-      radial-gradient(ellipse at bottom right, oklch(0.72 0.20 290 / 0.08), transparent 60%);
+      radial-gradient(ellipse at top, oklch(0.82 0.18 210 / 0.1), transparent 60%),
+      radial-gradient(ellipse at bottom right, oklch(0.72 0.2 290 / 0.08), transparent 60%);
     background-attachment: fixed;
   }
-  h1, h2, h3, .font-display {
+  h1,
+  h2,
+  h3,
+  .font-display {
     font-family: var(--font-display);
     letter-spacing: 0.02em;
   }
@@ -147,11 +156,15 @@
 
 @utility hud-border {
   border: 1px solid oklch(0.82 0.18 210 / 0.4);
-  box-shadow: 0 0 12px oklch(0.82 0.18 210 / 0.3), inset 0 0 8px oklch(0.82 0.18 210 / 0.1);
+  box-shadow:
+    0 0 12px oklch(0.82 0.18 210 / 0.3),
+    inset 0 0 8px oklch(0.82 0.18 210 / 0.1);
 }
 
 @utility text-glow {
-  text-shadow: 0 0 12px oklch(0.82 0.18 210 / 0.7), 0 0 28px oklch(0.82 0.18 210 / 0.4);
+  text-shadow:
+    0 0 12px oklch(0.82 0.18 210 / 0.7),
+    0 0 28px oklch(0.82 0.18 210 / 0.4);
 }
 
 @utility gradient-text {
@@ -171,37 +184,80 @@
    ============================================================ */
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px oklch(0.82 0.18 210 / 0.35); }
-  50% { box-shadow: 0 0 50px oklch(0.82 0.18 210 / 0.7); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px oklch(0.82 0.18 210 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 50px oklch(0.82 0.18 210 / 0.7);
+  }
 }
 @keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 @keyframes ring-rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
-.animate-pulse-glow { animation: pulse-glow 2.4s ease-in-out infinite; }
-.animate-scan { animation: scan 3s linear infinite; }
-.animate-float { animation: float 4s ease-in-out infinite; }
-.animate-ring-rotate { animation: ring-rotate 12s linear infinite; }
-.animate-ring-rotate-reverse { animation: ring-rotate 18s linear infinite reverse; }
-.animate-fade-in-up { animation: fade-in-up 0.5s ease-out both; }
-.animate-blink { animation: blink 1.4s ease-in-out infinite; }
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+.animate-ring-rotate {
+  animation: ring-rotate 12s linear infinite;
+}
+.animate-ring-rotate-reverse {
+  animation: ring-rotate 18s linear infinite reverse;
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
+}
+.animate-blink {
+  animation: blink 1.4s ease-in-out infinite;
+}
 
 /* Subtle grid overlay */
 .bg-grid {
@@ -212,10 +268,20 @@
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.82 0.18 210 / 0.3); border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: oklch(0.82 0.18 210 / 0.5); }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.82 0.18 210 / 0.3);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.82 0.18 210 / 0.5);
+}
 
 /* Custom Sidebar Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {

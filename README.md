@@ -29,23 +29,27 @@ LORD is an advanced, autonomous AI application designed to function as the centr
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/nagasatwik145/lord-ai.git
    cd lord-ai
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Configure environment variables:
    Create a `.env` file in the root directory:
+
    ```env
    OPENROUTER_API_KEY=your_api_key
    ```
 
 4. Setup the database:
+
    ```bash
    npx drizzle-kit push
    ```

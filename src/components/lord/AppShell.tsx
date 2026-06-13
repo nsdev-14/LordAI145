@@ -44,13 +44,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link to="/" className="flex items-center gap-3">
             <div className="relative h-9 w-9">
               <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse-glow" />
-              <div className="absolute inset-1 rounded-full" style={{ background: "var(--gradient-hud)" }} />
+              <div
+                className="absolute inset-1 rounded-full"
+                style={{ background: "var(--gradient-hud)" }}
+              />
               <div className="absolute inset-3 rounded-full bg-background" />
-              <div className="absolute inset-[14px] rounded-full" style={{ background: "var(--gradient-hud)", boxShadow: "0 0 12px var(--hud)" }} />
+              <div
+                className="absolute inset-[14px] rounded-full"
+                style={{ background: "var(--gradient-hud)", boxShadow: "0 0 12px var(--hud)" }}
+              />
             </div>
             <div className="leading-tight">
-              <div className="font-display text-lg font-bold tracking-wider gradient-text">LORD</div>
-              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">AI</div>
+              <div className="font-display text-lg font-bold tracking-wider gradient-text">
+                LORD
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                AI
+              </div>
             </div>
           </Link>
 
@@ -80,25 +90,25 @@ export function AppShell({ children }: { children: ReactNode }) {
         <HealthHud />
         <div className="flex-1">
           <ul className="hud-panel flex flex-col gap-1 p-2 w-fit">
-          {NAV.map(({ to, label, icon: Icon }) => {
-            const active = to === "/" ? path === "/" : path.startsWith(to);
-            return (
-              <li key={to}>
-                <Link
-                  to={to}
-                  className={cn(
-                    "group flex h-11 w-11 items-center justify-center rounded-md transition-all",
-                    active
-                      ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]"
-                      : "text-muted-foreground hover:text-primary hover:bg-primary/10",
-                  )}
-                  title={label}
-                >
-                  <Icon className="h-5 w-5" />
-                </Link>
-              </li>
-            );
-          })}
+            {NAV.map(({ to, label, icon: Icon }) => {
+              const active = to === "/" ? path === "/" : path.startsWith(to);
+              return (
+                <li key={to}>
+                  <Link
+                    to={to}
+                    className={cn(
+                      "group flex h-11 w-11 items-center justify-center rounded-md transition-all",
+                      active
+                        ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]"
+                        : "text-muted-foreground hover:text-primary hover:bg-primary/10",
+                    )}
+                    title={label}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </nav>
@@ -114,9 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   to={to}
                   className={cn(
                     "flex flex-col items-center gap-0.5 rounded-md px-2.5 py-1.5 text-[10px] transition-all",
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground",
+                    active ? "bg-primary/15 text-primary" : "text-muted-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />

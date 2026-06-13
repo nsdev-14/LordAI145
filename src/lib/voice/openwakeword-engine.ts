@@ -53,8 +53,7 @@ async function loadOrt(): Promise<OrtModule> {
   // to ship them; this also avoids subpath issues inside the Capacitor
   // file:// WebView.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ort as any).env.wasm.wasmPaths =
-    "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/";
+  (ort as any).env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/";
   return ort;
 }
 

@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createWakeEngine, type WakeEngine } from "@/lib/voice";
 import { monitoring } from "@/lib/monitoring-service";
 
@@ -52,7 +60,11 @@ export function WakeWordProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Microphone initialization failed";
       monitoring.logEvent({ type: "error", category: "voice", message });
-      setReply(message.includes("denied") ? "Microphone access was denied. Enable it in browser settings." : "Voice activation could not start on this device.");
+      setReply(
+        message.includes("denied")
+          ? "Microphone access was denied. Enable it in browser settings."
+          : "Voice activation could not start on this device.",
+      );
       setStatus("unsupported");
     }
   }, [supported]);
@@ -61,7 +73,12 @@ export function WakeWordProvider({ children }: { children: ReactNode }) {
     void (enabled ? stop() : start());
   }, [enabled, start, stop]);
 
-  useEffect(() => () => { void engineRef.current?.stop(); }, []);
+  useEffect(
+    () => () => {
+      void engineRef.current?.stop();
+    },
+    [],
+  );
 
   return (
     <WakeWordContext.Provider value={{ enabled, status, transcript, reply, supported, toggle }}>

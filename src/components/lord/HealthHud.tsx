@@ -1,4 +1,14 @@
-import { Cpu, Activity, Clock, Shield, Database, Wifi, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import {
+  Cpu,
+  Activity,
+  Clock,
+  Shield,
+  Database,
+  Wifi,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { HudPanel } from "./HudPanel";
 import { useAppContext } from "./AppContextProvider";
 import { monitoring } from "@/lib/monitoring-service";
@@ -21,13 +31,16 @@ export function HealthHud() {
   };
 
   return (
-    <HudPanel 
-      title="System Intelligence" 
-      subtitle={`Health: ${healthStatus.toUpperCase()}`} 
+    <HudPanel
+      title="System Intelligence"
+      subtitle={`Health: ${healthStatus.toUpperCase()}`}
       className={cn(
         "mb-4 w-64 border-l-4 transition-all duration-500",
-        healthStatus === "healthy" ? "border-l-[var(--hud-success)]" :
-        healthStatus === "warning" ? "border-l-yellow-400" : "border-l-red-500"
+        healthStatus === "healthy"
+          ? "border-l-[var(--hud-success)]"
+          : healthStatus === "warning"
+            ? "border-l-yellow-400"
+            : "border-l-red-500",
       )}
     >
       <div className="grid grid-cols-2 gap-2 mb-4">
@@ -36,14 +49,18 @@ export function HealthHud() {
             <Activity className="h-3 w-3 text-primary" />
             <span className="text-[10px] font-mono text-muted-foreground">{metrics.latency}ms</span>
           </div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Latency</div>
+          <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            Latency
+          </div>
         </div>
         <div className="rounded-md border border-border/40 bg-background/40 p-2">
           <div className="flex items-center justify-between">
             <Clock className="h-3 w-3 text-primary" />
             <span className="text-[10px] font-mono text-muted-foreground">{metrics.uptime}s</span>
           </div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Uptime</div>
+          <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            Uptime
+          </div>
         </div>
       </div>
 

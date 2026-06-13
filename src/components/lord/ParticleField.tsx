@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
  * ParticleField - Animated background particle effect
  */
 export function ParticleField() {
-  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number }>>([]);
+  const [particles, setParticles] = useState<
+    Array<{ id: number; x: number; y: number; vx: number; vy: number }>
+  >([]);
 
   useEffect(() => {
     // Initialize particles
@@ -24,7 +26,7 @@ export function ParticleField() {
           ...p,
           x: (p.x + p.vx + 100) % 100,
           y: (p.y + p.vy + 100) % 100,
-        }))
+        })),
       );
     }, 50);
 
@@ -35,7 +37,14 @@ export function ParticleField() {
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
       <svg className="w-full h-full">
         {particles.map((p) => (
-          <circle key={p.id} cx={`${p.x}%`} cy={`${p.y}%`} r="0.5" fill="var(--hud)" opacity="0.1" />
+          <circle
+            key={p.id}
+            cx={`${p.x}%`}
+            cy={`${p.y}%`}
+            r="0.5"
+            fill="var(--hud)"
+            opacity="0.1"
+          />
         ))}
       </svg>
     </div>

@@ -102,10 +102,7 @@ class MonitoringService {
     this.notify();
   }
 
-  public updateStatus(
-    type: "api" | "db" | "auth",
-    status: "online" | "degraded" | "offline",
-  ) {
+  public updateStatus(type: "api" | "db" | "auth", status: "online" | "degraded" | "offline") {
     if (type === "api") this.metrics.apiStatus = status;
     if (type === "db") this.metrics.dbStatus = status;
     if (type === "auth") this.metrics.authStatus = status === "degraded" ? "offline" : status;

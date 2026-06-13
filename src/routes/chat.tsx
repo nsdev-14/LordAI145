@@ -13,11 +13,18 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { uid, type Conversation } from "@/lib/lord-store";
 
 export const Route = createFileRoute("/chat")({
-  head: () => ({ meta: [{ title: "LORD — Chat" }, { name: "description", content: "Talk to LORD AI." }] }),
+  head: () => ({
+    meta: [{ title: "LORD — Chat" }, { name: "description", content: "Talk to LORD AI." }],
+  }),
   component: ChatPage,
 });
 
-const MODES: Array<{ id: LordMode; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }> = [
+const MODES: Array<{
+  id: LordMode;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  hint: string;
+}> = [
   { id: "fast", label: "Fast", icon: Zap, hint: "Quick answers" },
   { id: "balanced", label: "Balanced", icon: Gauge, hint: "Daily driver" },
   { id: "reasoning", label: "Reason", icon: Brain, hint: "Deep thinking" },
@@ -35,32 +42,45 @@ function ChatPage() {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
-  
+
   const { messages, setMessages, sendMessage, status, error } = useChat({
     id: conversationId,
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: () => ({ 
+      body: () => ({
         mode,
         context: {
           page: currentRoute,
           workflow: activeWorkflow,
           metrics,
-          history
-        }
+          history,
+        },
       }),
     }),
     onFinish: ({ messages: completed, isError }) => {
       if (isError) return;
       const storedMessages = completed.flatMap((message) => {
-        const content = message.parts.filter((part) => part.type === "text").map((part) => part.text).join("").trim();
+        const content = message.parts
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("")
+          .trim();
         return content && (message.role === "user" || message.role === "assistant")
           ? [{ id: message.id, role: message.role, content }]
           : [];
       });
-      const firstUser = storedMessages.find((message) => message.role === "user")?.content ?? "New conversation";
-      const conversation: Conversation = { id: conversationId, title: firstUser.slice(0, 60), updatedAt: Date.now(), messages: storedMessages };
-      setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversationId)]);
+      const firstUser =
+        storedMessages.find((message) => message.role === "user")?.content ?? "New conversation";
+      const conversation: Conversation = {
+        id: conversationId,
+        title: firstUser.slice(0, 60),
+        updatedAt: Date.now(),
+        messages: storedMessages,
+      };
+      setConversations((current) => [
+        conversation,
+        ...current.filter((item) => item.id !== conversationId),
+      ]);
     },
   });
 
@@ -68,11 +88,13 @@ function ChatPage() {
     const conversation = conversations.find((item) => item.id === id);
     if (!conversation) return;
     setConversationId(id);
-    setMessages(conversation.messages.map((m) => ({
+    setMessages(
+      conversation.messages.map((m) => ({
         id: m.id,
         role: m.role,
-        parts: [{ type: "text", text: m.content }]
-      })));
+        parts: [{ type: "text", text: m.content }],
+      })),
+    );
   };
 
   const startNewChat = () => {
@@ -105,14 +127,20 @@ function ChatPage() {
         {/* Sidebar */}
         {sidebarOpen && (
           <div className="hidden w-72 flex-shrink-0 lg:block">
-            <ChatSidebar currentId={conversationId} onSelect={loadConversation} onNew={startNewChat} onDelete={deleteConversation} conversations={conversations} />
+            <ChatSidebar
+              currentId={conversationId}
+              onSelect={loadConversation}
+              onNew={startNewChat}
+              onDelete={deleteConversation}
+              conversations={conversations}
+            />
           </div>
         )}
 
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
           {/* Header */}
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="hidden rounded-md border border-border/60 bg-background/40 p-2 text-muted-foreground transition hover:text-primary lg:block"
             >
@@ -121,7 +149,9 @@ function ChatPage() {
 
             {/* Mode selector */}
             <div className="hud-panel flex flex-1 flex-wrap items-center gap-1 p-2">
-              <span className="px-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Mode</span>
+              <span className="px-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Mode
+              </span>
               {MODES.map((m) => {
                 const Icon = m.icon;
                 const active = mode === m.id;
@@ -152,7 +182,13 @@ function ChatPage() {
             ) : (
               <ul className="space-y-4">
                 {messages.map((m) => (
-                  <li key={m.id} className={cn("flex gap-3", m.role === "user" ? "justify-end" : "justify-start")}>
+                  <li
+                    key={m.id}
+                    className={cn(
+                      "flex gap-3",
+                      m.role === "user" ? "justify-end" : "justify-start",
+                    )}
+                  >
                     {m.role === "assistant" && <Avatar />}
                     <div
                       className={cn(
@@ -214,7 +250,10 @@ function ChatPage() {
 
 function Avatar() {
   return (
-    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "var(--gradient-hud)", boxShadow: "0 0 12px var(--hud)" }}>
+    <div
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+      style={{ background: "var(--gradient-hud)", boxShadow: "0 0 12px var(--hud)" }}
+    >
       <span className="font-display text-[10px] font-bold text-background">L</span>
     </div>
   );
@@ -235,7 +274,10 @@ function EmptyState() {
       </p>
       <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
         {suggestions.map((s) => (
-          <div key={s} className="rounded-md border border-border/60 bg-background/40 p-3 text-left text-xs text-muted-foreground">
+          <div
+            key={s}
+            className="rounded-md border border-border/60 bg-background/40 p-3 text-left text-xs text-muted-foreground"
+          >
             {s}
           </div>
         ))}

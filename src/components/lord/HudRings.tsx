@@ -33,15 +33,49 @@ export function HudRings({ size = 200, state = "idle" }: HudRingsProps) {
 
   return (
     <div className="flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 200 200" className={cn("w-full h-full", getAnimationClass())} style={{ transform: `rotate(${rotation}deg)` }}>
+      <svg
+        viewBox="0 0 200 200"
+        className={cn("w-full h-full", getAnimationClass())}
+        style={{ transform: `rotate(${rotation}deg)` }}
+      >
         {/* Outer ring */}
-        <circle cx="100" cy="100" r="90" fill="none" stroke="var(--hud)" strokeWidth="1" opacity="0.3" />
+        <circle
+          cx="100"
+          cy="100"
+          r="90"
+          fill="none"
+          stroke="var(--hud)"
+          strokeWidth="1"
+          opacity="0.3"
+        />
         {/* Middle ring */}
-        <circle cx="100" cy="100" r="60" fill="none" stroke="var(--hud)" strokeWidth="1" opacity="0.5" />
+        <circle
+          cx="100"
+          cy="100"
+          r="60"
+          fill="none"
+          stroke="var(--hud)"
+          strokeWidth="1"
+          opacity="0.5"
+        />
         {/* Inner ring */}
-        <circle cx="100" cy="100" r="30" fill="none" stroke="var(--hud)" strokeWidth="2" opacity="0.8" />
+        <circle
+          cx="100"
+          cy="100"
+          r="30"
+          fill="none"
+          stroke="var(--hud)"
+          strokeWidth="2"
+          opacity="0.8"
+        />
         {/* Center dot */}
-        <circle cx="100" cy="100" r="4" fill="var(--hud)" filter="drop-shadow(0 0 4px var(--hud))" />
+        <circle
+          cx="100"
+          cy="100"
+          r="4"
+          fill="var(--hud)"
+          filter="drop-shadow(0 0 4px var(--hud))"
+        />
       </svg>
     </div>
   );

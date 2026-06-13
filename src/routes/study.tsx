@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Loader2, BookOpen, Layers, ListChecks, FileQuestion, NotebookPen, CalendarRange } from "lucide-react";
+import {
+  Loader2,
+  BookOpen,
+  Layers,
+  ListChecks,
+  FileQuestion,
+  NotebookPen,
+  CalendarRange,
+} from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { getApiBaseUrl } from "@/lib/api-config";
@@ -13,13 +21,53 @@ export const Route = createFileRoute("/study")({
 
 type Tool = "tutor" | "flashcards" | "quiz" | "exam" | "notes" | "plan";
 
-const TOOLS: Array<{ id: Tool; label: string; icon: React.ComponentType<{ className?: string }>; prompt: (topic: string) => string }> = [
-  { id: "tutor", label: "AI Tutor", icon: BookOpen, prompt: (t) => `Act as a world-class tutor. Teach me "${t}" from first principles. Use a step-by-step explanation, concrete examples, and an analogy. End with a quick understanding check.` },
-  { id: "flashcards", label: "Flashcards", icon: Layers, prompt: (t) => `Generate 10 concise Q/A flashcards on "${t}". Format as: Q: ...\nA: ...` },
-  { id: "quiz", label: "Quiz (MCQ)", icon: ListChecks, prompt: (t) => `Create a 10-question multiple-choice quiz on "${t}" with 4 options each, marking the correct answer and a 1-line explanation.` },
-  { id: "exam", label: "Exam", icon: FileQuestion, prompt: (t) => `Create a full-length practice exam on "${t}": 5 MCQs, 3 short-answer, 2 long-answer. Provide a rubric.` },
-  { id: "notes", label: "Notes", icon: NotebookPen, prompt: (t) => `Generate detailed study notes on "${t}" with headings, bullet points, key terms, formulas, and a TL;DR.` },
-  { id: "plan", label: "Revision Plan", icon: CalendarRange, prompt: (t) => `Build a 7-day revision schedule for "${t}" using spaced repetition. Daily blocks, goals, and active-recall checkpoints.` },
+const TOOLS: Array<{
+  id: Tool;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  prompt: (topic: string) => string;
+}> = [
+  {
+    id: "tutor",
+    label: "AI Tutor",
+    icon: BookOpen,
+    prompt: (t) =>
+      `Act as a world-class tutor. Teach me "${t}" from first principles. Use a step-by-step explanation, concrete examples, and an analogy. End with a quick understanding check.`,
+  },
+  {
+    id: "flashcards",
+    label: "Flashcards",
+    icon: Layers,
+    prompt: (t) => `Generate 10 concise Q/A flashcards on "${t}". Format as: Q: ...\nA: ...`,
+  },
+  {
+    id: "quiz",
+    label: "Quiz (MCQ)",
+    icon: ListChecks,
+    prompt: (t) =>
+      `Create a 10-question multiple-choice quiz on "${t}" with 4 options each, marking the correct answer and a 1-line explanation.`,
+  },
+  {
+    id: "exam",
+    label: "Exam",
+    icon: FileQuestion,
+    prompt: (t) =>
+      `Create a full-length practice exam on "${t}": 5 MCQs, 3 short-answer, 2 long-answer. Provide a rubric.`,
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    icon: NotebookPen,
+    prompt: (t) =>
+      `Generate detailed study notes on "${t}" with headings, bullet points, key terms, formulas, and a TL;DR.`,
+  },
+  {
+    id: "plan",
+    label: "Revision Plan",
+    icon: CalendarRange,
+    prompt: (t) =>
+      `Build a 7-day revision schedule for "${t}" using spaced repetition. Daily blocks, goals, and active-recall checkpoints.`,
+  },
 ];
 
 function StudyPage() {
@@ -64,7 +112,9 @@ function StudyPage() {
               acc += o.delta;
               setOutput(acc);
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
       }
     } catch {
@@ -76,7 +126,9 @@ function StudyPage() {
 
   return (
     <AppShell>
-      <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">Study Command Center</h1>
+      <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+        Study Command Center
+      </h1>
       <p className="mb-6 text-sm text-muted-foreground">Learn anything, faster. Powered by LORD.</p>
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -88,7 +140,9 @@ function StudyPage() {
                   onClick={() => setTool(id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition",
-                    tool === id ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]" : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                    tool === id
+                      ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]"
+                      : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
                   )}
                 >
                   <Icon className="h-4 w-4" /> {label}
@@ -108,7 +162,11 @@ function StudyPage() {
                 placeholder="e.g. Newton's Laws of Motion"
                 className="flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
               />
-              <button onClick={run} disabled={busy || !topic.trim()} className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40">
+              <button
+                onClick={run}
+                disabled={busy || !topic.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
+              >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate"}
               </button>
             </div>

@@ -31,7 +31,9 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   });
   const currentRoute = location.pathname;
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<{ timestamp: number; action: string; data?: unknown }>>([]);
+  const [history, setHistory] = useState<
+    Array<{ timestamp: number; action: string; data?: unknown }>
+  >([]);
 
   useEffect(() => {
     return monitoring.subscribe((next) => {

@@ -11,7 +11,13 @@ interface ChatSidebarProps {
   conversations: Conversation[];
 }
 
-export function ChatSidebar({ currentId, onSelect, onNew, onDelete, conversations }: ChatSidebarProps) {
+export function ChatSidebar({
+  currentId,
+  onSelect,
+  onNew,
+  onDelete,
+  conversations,
+}: ChatSidebarProps) {
   return (
     <HudPanel title="Conversations" subtitle="Chat history" className="flex flex-col gap-3 h-full">
       <button
@@ -33,12 +39,15 @@ export function ChatSidebar({ currentId, onSelect, onNew, onDelete, conversation
                 "group rounded-md border px-2 py-1.5 text-xs cursor-pointer transition",
                 currentId === conv.id
                   ? "bg-primary/20 border-primary/60"
-                  : "border-border/40 bg-background/20 hover:bg-background/40"
+                  : "border-border/40 bg-background/20 hover:bg-background/40",
               )}
             >
               <div className="flex items-start gap-2 justify-between">
                 <div className="flex-1 min-w-0">
-                  <button onClick={() => onSelect(conv.id)} className="flex w-full items-center gap-1 text-left">
+                  <button
+                    onClick={() => onSelect(conv.id)}
+                    className="flex w-full items-center gap-1 text-left"
+                  >
                     <MessageSquare className="h-3 w-3 flex-shrink-0" />
                     <p className="truncate font-medium">{conv.title || "Untitled"}</p>
                   </button>
@@ -46,7 +55,11 @@ export function ChatSidebar({ currentId, onSelect, onNew, onDelete, conversation
                     {new Date(conv.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
-                <button onClick={() => onDelete(conv.id)} aria-label={`Delete ${conv.title}`} className="text-muted-foreground hover:text-destructive">
+                <button
+                  onClick={() => onDelete(conv.id)}
+                  aria-label={`Delete ${conv.title}`}
+                  className="text-muted-foreground hover:text-destructive"
+                >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>

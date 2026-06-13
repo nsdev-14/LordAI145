@@ -14,21 +14,21 @@ export function setupApiInterceptor() {
   window.fetch = async (...args) => {
     const start = Date.now();
     const url = typeof args[0] === "string" ? args[0] : (args[0] as Request).url;
-    
+
     try {
       const response = await originalFetch(...args);
       const latency = Date.now() - start;
-      
+
       monitoring.updateLatency(latency);
-      
+
       if (!response.ok) {
         monitoring.logEvent({
           type: "error",
           category: "api",
           message: `API Failure: ${response.status} ${response.statusText}`,
-          metadata: { url, status: response.status, latency }
+          metadata: { url, status: response.status, latency },
         });
-        
+
         if (response.status === 401 || response.status === 403) {
           monitoring.updateStatus("auth", "offline");
         } else if (response.status >= 500) {
@@ -39,22 +39,22 @@ export function setupApiInterceptor() {
           type: "api",
           category: "network",
           message: `Successful request to ${url}`,
-          metadata: { url, status: response.status, latency }
+          metadata: { url, status: response.status, latency },
         });
       }
-      
+
       return response;
     } catch (error) {
       const latency = Date.now() - start;
       const message = error instanceof Error ? error.message : "Network request failed";
-      
+
       monitoring.logEvent({
         type: "error",
         category: "network",
         message,
-        metadata: { url, latency }
+        metadata: { url, latency },
       });
-      
+
       monitoring.updateStatus("api", "offline");
       throw error;
     }
