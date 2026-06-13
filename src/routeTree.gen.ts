@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as StudyRouteImport } from './routes/study'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ProductivityRouteImport } from './routes/productivity'
@@ -28,6 +29,11 @@ const VoiceRoute = VoiceRouteImport.update({
 const StudyRoute = StudyRouteImport.update({
   id: '/study',
   path: '/study',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/productivity'
     | '/research'
     | '/settings'
+    | '/sitemap.xml'
     | '/study'
     | '/voice'
     | '/api/chat'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/productivity'
     | '/research'
     | '/settings'
+    | '/sitemap.xml'
     | '/study'
     | '/voice'
     | '/api/chat'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/productivity'
     | '/research'
     | '/settings'
+    | '/sitemap.xml'
     | '/study'
     | '/voice'
     | '/api/chat'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   ProductivityRoute: typeof ProductivityRoute
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StudyRoute: typeof StudyRoute
   VoiceRoute: typeof VoiceRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/study'
       fullPath: '/study'
       preLoaderRoute: typeof StudyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductivityRoute: ProductivityRoute,
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   StudyRoute: StudyRoute,
   VoiceRoute: VoiceRoute,
   ApiChatRoute: ApiChatRoute,
@@ -250,3 +271,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

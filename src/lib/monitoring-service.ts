@@ -140,7 +140,9 @@ class MonitoringService {
   public subscribe(listener: (metrics: SystemMetrics, events: AppEvent[]) => void) {
     this.listeners.add(listener);
     listener({ ...this.metrics }, [...this.events]);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   private notify() {
