@@ -1,8 +1,11 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export const createOpenRouterProvider = (apiKey: string) =>
-  createOpenRouter({
-    apiKey,
+export function createLovableAiGatewayProvider(apiKey: string) {
+  return createOpenAICompatible({
+    name: "lovable-ai",
+    baseURL: "https://ai.gateway.lovable.dev/v1",
+    headers: { "Lovable-API-Key": apiKey },
   });
+}
 
 export { LORD_MODELS, LORD_SYSTEM_PROMPT, type LordMode } from "./lord-config";
