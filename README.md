@@ -1,4 +1,4 @@
-# ⚡ LORD AI OS
+# ⚡ LORD AI 
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 
 ### Logical Operational Resource Director
 
-**A Next-Generation AI Operating System Inspired by J.A.R.V.I.S**
+**A Next-Generation AI Inspired by J.A.R.V.I.S**
 
 [![React](https://img.shields.io/badge/React-19-blue?style=flat-square)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square)]()
@@ -16,7 +16,7 @@
 
 ---
 
-### 🧠 Your Personal AI Operating System
+### 🧠 Your Personal AI 
 
 *Not just a chatbot. An intelligent command center.*
 
@@ -26,7 +26,7 @@
 
 # 🚀 Overview
 
-LORD (Logical Operational Resource Director) is a futuristic AI Operating System designed to provide an immersive, intelligent, and highly interactive assistant experience.
+LORD (Logical Operational Resource Director) is a futuristic AI designed to provide an immersive, intelligent, and highly interactive assistant experience.
 
 Built with a cyberpunk-inspired HUD interface, LORD combines:
 
@@ -293,7 +293,7 @@ npm run dev
 
 LORD is built around a simple idea:
 
-> AI should feel less like a chatbot and more like an intelligent operating system.
+> AI should feel less like a chatbot and more like an intelligent Next-Gen AI for personal use only.
 
 Instead of answering isolated questions, LORD aims to become a persistent, context-aware digital companion capable of assisting across projects, learning, productivity, and research.
 
@@ -303,7 +303,7 @@ Instead of answering isolated questions, LORD aims to become a persistent, conte
 
 ### Naga Satwik
 
-Building a futuristic AI Operating System from the ground up.
+Building a futuristic AI from the ground up.
 
 > "The goal isn't to create another chatbot.
 > The goal is to build J.A.R.V.I.S."
@@ -312,7 +312,7 @@ Building a futuristic AI Operating System from the ground up.
 
 <div align="center">
 
-### ⚡ LORD AI OS
+### ⚡ LORD AI
 
 **Command. Reason. Execute.**
 
