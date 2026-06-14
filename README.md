@@ -306,7 +306,7 @@ Instead of answering isolated questions, LORD aims to become a persistent, conte
 Building a futuristic AI from the ground up.
 
 > "The goal isn't to create another chatbot.
-> The goal is to build J.A.R.V.I.S."
+> The goal is to build Next-Gen J.A.R.V.I.S."
 
 ---
 
