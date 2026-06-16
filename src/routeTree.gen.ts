@@ -15,11 +15,13 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ProductivityRouteImport } from './routes/productivity'
-import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 
 const VoiceRoute = VoiceRouteImport.update({
   id: '/voice',
@@ -51,11 +53,6 @@ const ProductivityRoute = ProductivityRouteImport.update({
   path: '/productivity',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MemoryRoute = MemoryRouteImport.update({
-  id: '/memory',
-  path: '/memory',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DocumentsRoute = DocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
@@ -64,6 +61,15 @@ const DocumentsRoute = DocumentsRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -76,94 +82,108 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedMemoryRoute = AuthenticatedMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/chat': typeof ChatRoute
   '/documents': typeof DocumentsRoute
-  '/memory': typeof MemoryRoute
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
+  '/memory': typeof AuthenticatedMemoryRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/chat': typeof ChatRoute
   '/documents': typeof DocumentsRoute
-  '/memory': typeof MemoryRoute
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
+  '/memory': typeof AuthenticatedMemoryRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
   '/chat': typeof ChatRoute
   '/documents': typeof DocumentsRoute
-  '/memory': typeof MemoryRoute
   '/productivity': typeof ProductivityRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/study': typeof StudyRoute
   '/voice': typeof VoiceRoute
+  '/_authenticated/memory': typeof AuthenticatedMemoryRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/chat'
     | '/documents'
-    | '/memory'
     | '/productivity'
     | '/research'
     | '/settings'
     | '/sitemap.xml'
     | '/study'
     | '/voice'
+    | '/memory'
     | '/api/chat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
     | '/chat'
     | '/documents'
-    | '/memory'
     | '/productivity'
     | '/research'
     | '/settings'
     | '/sitemap.xml'
     | '/study'
     | '/voice'
+    | '/memory'
     | '/api/chat'
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
+    | '/auth'
     | '/chat'
     | '/documents'
-    | '/memory'
     | '/productivity'
     | '/research'
     | '/settings'
     | '/sitemap.xml'
     | '/study'
     | '/voice'
+    | '/_authenticated/memory'
     | '/api/chat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
   ChatRoute: typeof ChatRoute
   DocumentsRoute: typeof DocumentsRoute
-  MemoryRoute: typeof MemoryRoute
   ProductivityRoute: typeof ProductivityRoute
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -217,13 +237,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductivityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/memory': {
-      id: '/memory'
-      path: '/memory'
-      fullPath: '/memory'
-      preLoaderRoute: typeof MemoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/documents': {
       id: '/documents'
       path: '/documents'
@@ -236,6 +249,20 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -252,14 +279,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/memory': {
+      id: '/_authenticated/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof AuthenticatedMemoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
   ChatRoute: ChatRoute,
   DocumentsRoute: DocumentsRoute,
-  MemoryRoute: MemoryRoute,
   ProductivityRoute: ProductivityRoute,
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
