@@ -84,14 +84,14 @@ function DocsPage() {
 
   return (
     <AppShell>
-      <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+      <h1 className="mb-1 font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
         Document Intelligence
       </h1>
       <p className="mb-6 text-sm text-muted-foreground">Upload or paste — extract meaning.</p>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <HudPanel title="Source">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-4 py-6 text-sm hover:bg-primary/10">
+          <label className="flex min-h-24 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-4 py-6 text-center text-sm hover:bg-primary/10">
             <Upload className="h-4 w-4 text-primary" />
             <span>Upload .txt / .md / .json file</span>
             <input
@@ -111,7 +111,7 @@ function DocsPage() {
             onChange={(e) => setText(e.target.value)}
             rows={12}
             placeholder="…or paste text here"
-            className="mt-2 w-full rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary font-mono"
+            className="mt-2 w-full rounded-md border border-border/60 bg-background/40 px-3 py-2 font-mono text-base outline-none focus:border-primary sm:text-sm"
           />
         </HudPanel>
 
@@ -133,13 +133,13 @@ function DocsPage() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Ask a question about the document…"
-                className="w-full rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
+              className="min-h-11 w-full rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none focus:border-primary sm:text-sm"
               />
             )}
             <button
               onClick={run}
               disabled={busy || !text.trim()}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Analyze"}
             </button>

@@ -53,7 +53,7 @@ function Command() {
   return (
     <AppShell>
       {/* Hero */}
-      <section className="relative mb-6 overflow-hidden rounded-2xl hud-panel p-6 md:p-10">
+      <section className="relative mb-5 overflow-hidden rounded-2xl hud-panel p-4 sm:p-6 md:p-10">
         <div
           className="absolute inset-0 -z-0 opacity-30"
           style={{ background: "var(--gradient-radial)" }}
@@ -63,23 +63,23 @@ function Command() {
             <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary/80">
               / system initialized
             </p>
-            <h1 className="mt-2 font-display text-4xl md:text-6xl font-bold tracking-wide">
+            <h1 className="mt-2 font-display text-3xl font-bold tracking-wide sm:text-4xl md:text-6xl">
               <span className="gradient-text text-glow">LORD</span> at your service.
             </h1>
             <p className="mt-3 max-w-xl text-muted-foreground">
               The central intelligence layer of the platform. Standing by, Sir. Issue a directive or
               select a module to begin.
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-5 grid gap-2 sm:flex sm:flex-wrap">
               <Link
                 to="/chat"
-                className="group relative inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_var(--hud)] transition hover:scale-[1.02]"
+                className="group relative inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_var(--hud)] transition hover:scale-[1.02]"
               >
                 <Zap className="h-4 w-4" /> Engage
               </Link>
               <Link
                 to="/voice"
-                className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
               >
                 <Mic className="h-4 w-4" /> Voice Mode
               </Link>
@@ -92,7 +92,7 @@ function Command() {
       </section>
 
       {/* Quick actions */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-6">
         {QUICK_ACTIONS.map(({ to, label, icon: Icon, hint }, i) => (
           <motion.div
             key={to}
@@ -102,7 +102,7 @@ function Command() {
           >
             <Link
               to={to}
-              className="group flex h-full flex-col items-start gap-2 rounded-xl hud-panel p-4 transition hover:border-primary/60 hover:shadow-[0_0_30px_var(--hud)]"
+              className="group flex h-full min-h-24 flex-col items-start gap-2 rounded-xl hud-panel p-3 transition hover:border-primary/60 hover:shadow-[0_0_30px_var(--hud)] sm:p-4"
             >
               <Icon className="h-5 w-5 text-primary transition group-hover:scale-110" />
               <div>
@@ -117,7 +117,7 @@ function Command() {
       {/* Widget grid */}
       <div className="grid gap-4 md:grid-cols-3">
         <HudPanel title="LORD Status" subtitle="Core systems">
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center sm:gap-3">
             <Stat icon={<Cpu className="h-4 w-4" />} label="Engine" value="Online" tone="success" />
             <Stat icon={<Activity className="h-4 w-4" />} label="Latency" value="42ms" />
             <Stat icon={<Clock className="h-4 w-4" />} label="Uptime" value="∞" />

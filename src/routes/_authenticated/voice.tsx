@@ -25,9 +25,9 @@ function VoicePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto w-full max-w-3xl">
         <div className="mb-6 text-center">
-          <h1 className="font-display text-3xl md:text-4xl tracking-wide gradient-text text-glow">
+          <h1 className="font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl md:text-4xl">
             Voice Interface
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -36,8 +36,10 @@ function VoicePage() {
           </p>
         </div>
 
-        <div className="flex flex-col items-center gap-6 hud-panel py-10">
-          <HudRings size={260} state={ringState} />
+        <div className="flex flex-col items-center gap-5 hud-panel px-3 py-8 sm:gap-6 sm:py-10">
+          <div className="w-full max-w-[240px] sm:max-w-[260px]">
+            <HudRings size={260} state={ringState} />
+          </div>
 
           <div className="font-mono text-xs uppercase tracking-[0.3em] text-primary text-glow">
             {status === "listening" && "▮ Listening"}
@@ -52,7 +54,7 @@ function VoicePage() {
             onClick={toggle}
             disabled={!supported}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md border px-6 py-3 text-sm font-semibold transition",
+              "inline-flex min-h-12 items-center gap-2 rounded-md border px-6 py-3 text-sm font-semibold transition",
               enabled
                 ? "border-[var(--hud-success)] bg-[var(--hud-success)]/15 text-[var(--hud-success)] shadow-[0_0_24px_var(--hud-success)]"
                 : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10",
