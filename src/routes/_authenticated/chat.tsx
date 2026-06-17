@@ -233,7 +233,7 @@ function ChatPage() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-9rem)] gap-4 md:h-[calc(100vh-7rem)]">
+      <div className="flex h-[calc(100svh-9.25rem)] min-h-0 gap-3 md:h-[calc(100vh-7rem)] md:gap-4">
         {sidebarOpen && (
           <div className="hidden w-72 flex-shrink-0 lg:block">
             <ChatSidebar
@@ -247,8 +247,8 @@ function ChatPage() {
           </div>
         )}
 
-        <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden md:gap-4">
+            <div className="flex min-w-0 items-center gap-2">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="hidden rounded-md border border-border/60 bg-background/40 p-2 text-muted-foreground transition hover:text-primary lg:block"
@@ -257,8 +257,8 @@ function ChatPage() {
               <LayoutPanelLeft className="h-4 w-4" />
             </button>
 
-            <div className="hud-panel flex flex-1 flex-wrap items-center gap-1 p-2">
-              <span className="px-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              <div className="hud-panel flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-2 md:flex-wrap md:overflow-visible">
+                <span className="shrink-0 px-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 Mode
               </span>
               {MODES.map((m) => {
@@ -269,7 +269,7 @@ function ChatPage() {
                     key={m.id}
                     onClick={() => setMode(m.id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition",
+                      "flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition",
                       active
                         ? "bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)]"
                         : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
@@ -287,7 +287,7 @@ function ChatPage() {
           <div
             ref={scrollerRef}
             aria-live="polite"
-            className="flex-1 overflow-y-auto rounded-xl hud-panel p-4 md:p-6"
+            className="flex-1 overflow-y-auto rounded-xl hud-panel p-3 md:p-6"
           >
             {messages.length === 0 ? (
               <EmptyState onPick={(s) => setInput(s)} />
@@ -303,14 +303,14 @@ function ChatPage() {
                     <li
                       key={m.id}
                       className={cn(
-                        "flex gap-3",
+                        "flex min-w-0 gap-2 md:gap-3",
                         m.role === "user" ? "justify-end" : "justify-start",
                       )}
                     >
                       {m.role === "assistant" && <Avatar />}
-                      <div className="max-w-[88%]">
+                      <div className="min-w-0 max-w-[90%] md:max-w-[88%]">
                         {m.role === "user" ? (
-                          <div className="rounded-2xl bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground whitespace-pre-wrap">
+                          <div className="rounded-2xl bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground whitespace-pre-wrap md:px-4">
                             {text}
                           </div>
                         ) : (
@@ -354,7 +354,7 @@ function ChatPage() {
               }}
               placeholder="Issue your directive, Sir…"
               rows={1}
-              className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60"
+              className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-base outline-none placeholder:text-muted-foreground/60 md:max-h-40 md:text-sm"
             />
             <button
               type="submit"

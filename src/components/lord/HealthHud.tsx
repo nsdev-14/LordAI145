@@ -16,7 +16,7 @@ import { monitoring } from "@/lib/monitoring-service";
 import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
-export function HealthHud() {
+export function HealthHud({ compact = false }: { compact?: boolean }) {
   const { metrics, currentRoute, activeWorkflow } = useAppContext();
   const healthStatus = monitoring.getHealthStatus();
   const [collapsed, setCollapsed] = usePersistedState<boolean>("lord:hud.collapsed", false);
@@ -45,7 +45,8 @@ export function HealthHud() {
       <button
         onClick={() => setCollapsed(false)}
         className={cn(
-          "mb-4 w-64 flex items-center justify-between rounded-md border border-border/60 border-l-4 bg-background/60 px-3 py-2 text-xs hover:border-primary",
+          "mb-4 flex items-center justify-between rounded-md border border-border/60 border-l-4 bg-background/60 px-3 py-2 text-xs hover:border-primary",
+          compact ? "w-full" : "w-64",
           borderClass,
         )}
         aria-label="Expand system intelligence panel"
@@ -63,7 +64,7 @@ export function HealthHud() {
     <HudPanel
       title="System Intelligence"
       subtitle={`Health: ${healthStatus.toUpperCase()}`}
-      className={cn("mb-4 w-64 border-l-4 transition-all duration-500", borderClass)}
+      className={cn("mb-4 border-l-4 transition-all duration-500", compact ? "w-full" : "w-64", borderClass)}
       action={
         <button
           onClick={() => setCollapsed(true)}

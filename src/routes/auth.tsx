@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
-import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react";
+import { Loader2, Mail, Lock, User as UserIcon, Chrome } from "lucide-react";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -69,6 +70,25 @@ function AuthPage() {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { prompt: "select_account" },
+      });
+      if (result.redirected) return;
+      if (result.error) throw result.error;
+      navigate({ to: "/chat" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const titles: Record<Mode, { h: string; sub: string; btn: string }> = {
     signin: { h: "Access LORD", sub: "Sign in to continue.", btn: "Sign In" },
     signup: { h: "Create Identity", sub: "Register a new operator.", btn: "Create Account" },
@@ -78,21 +98,39 @@ function AuthPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-md">
-        <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+      <div className="mx-auto w-full max-w-md px-1">
+        <h1 className="mb-1 font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
           {t.h}
         </h1>
         <p className="mb-6 text-sm text-muted-foreground">{t.sub}</p>
 
         <HudPanel title={t.btn}>
           <form onSubmit={submit} className="space-y-3">
+            {mode === "signin" && (
+              <>
+                <button
+                  type="button"
+                  onClick={signInWithGoogle}
+                  disabled={busy}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border/60 bg-background/50 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary hover:bg-primary/10 disabled:opacity-60"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4 text-primary" />}
+                  Continue with Google
+                </button>
+                <div className="flex items-center gap-3 py-1">
+                  <span className="h-px flex-1 bg-border/60" />
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">or</span>
+                  <span className="h-px flex-1 bg-border/60" />
+                </div>
+              </>
+            )}
             {mode === "signup" && (
               <Field icon={UserIcon} label="Name">
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
-                  className="w-full bg-transparent text-sm outline-none"
+                  className="w-full bg-transparent text-base outline-none sm:text-sm"
                 />
               </Field>
             )}
@@ -103,7 +141,7 @@ function AuthPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@domain.com"
-                className="w-full bg-transparent text-sm outline-none"
+                className="w-full bg-transparent text-base outline-none sm:text-sm"
               />
             </Field>
             {mode !== "forgot" && (
@@ -115,7 +153,7 @@ function AuthPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-transparent text-sm outline-none"
+                  className="w-full bg-transparent text-base outline-none sm:text-sm"
                 />
               </Field>
             )}
@@ -134,13 +172,13 @@ function AuthPage() {
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] transition hover:scale-[1.01] disabled:opacity-60"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] transition hover:scale-[1.01] disabled:opacity-60"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {t.btn}
             </button>
 
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
               {mode === "signin" ? (
                 <>
                   <button

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SettingsSchema = z.object({
-  default_mode: z.enum(["fast", "balanced", "deep", "creative"]).optional(),
+  default_mode: z.enum(["fast", "balanced", "reasoning", "coding", "creative"]).optional(),
   voice_rate: z.number().min(0.5).max(2).optional(),
   auto_speak: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),

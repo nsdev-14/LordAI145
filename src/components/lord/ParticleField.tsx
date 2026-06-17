@@ -9,8 +9,11 @@ export function ParticleField() {
   >([]);
 
   useEffect(() => {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches;
+    const count = reduced ? 0 : coarse ? 14 : 30;
     // Initialize particles
-    const initialParticles = Array.from({ length: 30 }, (_, i) => ({
+    const initialParticles = Array.from({ length: count }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -20,6 +23,7 @@ export function ParticleField() {
     setParticles(initialParticles);
 
     // Animation loop
+    if (reduced) return;
     const interval = setInterval(() => {
       setParticles((prev) =>
         prev.map((p) => ({

@@ -103,18 +103,18 @@ function MemoryPage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:flex-wrap sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="mb-1 truncate font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
             Memory Vault
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             Persistent recall · {memories.length} stored · {user.email}
           </p>
         </div>
         <button
           onClick={signOut}
-          className="inline-flex items-center gap-1 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:border-primary hover:text-primary"
+          className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:border-primary hover:text-primary"
         >
           <LogOut className="h-3.5 w-3.5" /> Sign out
         </button>
@@ -129,11 +129,11 @@ function MemoryPage() {
             placeholder="Important fact, goal, or note…"
             className="w-full rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
           />
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 grid gap-2 sm:flex">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
-              className="flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none"
+              className="min-h-11 flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none sm:text-sm"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -144,7 +144,7 @@ function MemoryPage() {
             <button
               onClick={() => addMutation.mutate()}
               disabled={addMutation.isPending || !content.trim()}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-60"
             >
               {addMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,7 +170,7 @@ function MemoryPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="rounded-md border border-border/60 bg-background/40 pl-8 pr-2 py-1.5 text-xs outline-none focus:border-primary"
+                className="min-h-9 w-full rounded-md border border-border/60 bg-background/40 py-1.5 pl-8 pr-2 text-xs outline-none focus:border-primary sm:w-auto"
               />
             </div>
           }

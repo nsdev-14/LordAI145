@@ -45,7 +45,7 @@ function ProductivityPage() {
 
   return (
     <AppShell>
-      <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+      <h1 className="mb-1 font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
         Productivity Center
       </h1>
       <p className="mb-6 text-sm text-muted-foreground">Tasks, goals, and focus — orchestrated.</p>
@@ -63,12 +63,12 @@ function ProductivityPage() {
               onChange={(e) => setTaskInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addTask()}
               placeholder="New task…"
-              className="flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
+              className="min-h-11 flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none focus:border-primary sm:text-sm"
             />
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as Task["priority"])}
-              className="rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none"
+              className="min-h-11 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none sm:text-sm"
             >
               <option value="low">Low</option>
               <option value="med">Medium</option>
@@ -76,7 +76,7 @@ function ProductivityPage() {
             </select>
             <button
               onClick={addTask}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)]"
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)]"
             >
               <Plus className="h-4 w-4" /> Add
             </button>
@@ -89,20 +89,20 @@ function ProductivityPage() {
                 <li
                   key={t.id}
                   className={cn(
-                    "flex items-center gap-3 rounded-md border border-border/40 bg-background/30 px-3 py-2",
+                    "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 sm:gap-3",
                     t.done && "opacity-60",
                   )}
                 >
                   <button
                     onClick={() => toggle(t.id)}
                     className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded border",
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded border sm:h-5 sm:w-5",
                       t.done ? "bg-primary border-primary" : "border-border",
                     )}
                   >
                     {t.done && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
                   </button>
-                  <span className={cn("flex-1 text-sm", t.done && "line-through")}>{t.title}</span>
+                  <span className={cn("min-w-0 break-words text-sm", t.done && "line-through")}>{t.title}</span>
                   <span
                     className={cn(
                       "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono uppercase",
@@ -133,17 +133,17 @@ function ProductivityPage() {
 
         {/* Goals */}
         <HudPanel title="Long-term Goals" className="lg:col-span-3">
-          <div className="mb-3 flex gap-2">
+          <div className="mb-3 grid gap-2 sm:flex">
             <input
               value={goalInput}
               onChange={(e) => setGoalInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addGoal()}
               placeholder="New goal…"
-              className="flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
+              className="min-h-11 flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none focus:border-primary sm:text-sm"
             />
             <button
               onClick={addGoal}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
             >
               <Target className="h-4 w-4" /> Add Goal
             </button>

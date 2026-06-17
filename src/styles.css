@@ -108,6 +108,7 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    box-sizing: border-box;
   }
   html,
   body,
@@ -116,12 +117,38 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     min-height: 100vh;
+    width: 100%;
+    overflow-x: clip;
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
   }
   body {
     background-image:
       radial-gradient(ellipse at top, oklch(0.82 0.18 210 / 0.1), transparent 60%),
       radial-gradient(ellipse at bottom right, oklch(0.72 0.2 290 / 0.08), transparent 60%);
     background-attachment: fixed;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    min-width: 0;
   }
   h1,
   h2,
@@ -296,4 +323,43 @@
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary);
+}
+
+.mobile-safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.mobile-safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.mobile-app-main {
+  min-height: calc(100svh - 4rem);
+}
+
+@media (max-width: 767px) {
+  .hud-panel,
+  .glass-panel {
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 20px oklch(0.82 0.18 210 / 0.22), inset 0 0 14px oklch(0.82 0.18 210 / 0.06);
+  }
+
+  .bg-grid {
+    background-size: 30px 30px;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px oklch(0.82 0.18 210 / 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }

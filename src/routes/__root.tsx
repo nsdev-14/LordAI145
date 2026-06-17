@@ -20,6 +20,17 @@ if (typeof window !== "undefined") {
   setupApiInterceptor();
 }
 
+function registerServiceWorker() {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !import.meta.env.PROD) {
+    return;
+  }
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  });
+}
+
+registerServiceWorker();
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -85,6 +96,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "mobile-web-app-capable", content: "yes" },
       { name: "theme-color", content: "#0a0e1a" },
       { title: "LORD AI — Personal Intelligence OS" },
       {
@@ -131,6 +145,12 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void import("../lib/mobile-native").then(({ initializeMobileRuntime }) =>
+      initializeMobileRuntime(),
+    );
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

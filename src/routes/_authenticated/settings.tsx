@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-const MODE_KEYS = ["fast", "balanced", "deep", "creative"] as const;
+const MODE_KEYS = ["fast", "balanced", "reasoning", "coding", "creative"] as const;
 
 function SettingsPage() {
   const fetchSettings = useServerFn(getUserSettings);

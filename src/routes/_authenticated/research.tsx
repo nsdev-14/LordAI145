@@ -69,7 +69,7 @@ function ResearchPage() {
 
   return (
     <AppShell>
-      <h1 className="mb-1 font-display text-3xl tracking-wide gradient-text text-glow">
+      <h1 className="mb-1 font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
         Research Engine
       </h1>
       <p className="mb-6 text-sm text-muted-foreground">Deep analysis on demand.</p>
@@ -83,13 +83,13 @@ function ResearchPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && run()}
               placeholder="Research topic…"
-              className="w-full rounded-md border border-border/60 bg-background/40 pl-9 pr-3 py-2 text-sm outline-none focus:border-primary"
+              className="min-h-11 w-full rounded-md border border-border/60 bg-background/40 py-2 pl-9 pr-3 text-base outline-none focus:border-primary sm:text-sm"
             />
           </div>
           <select
             value={depth}
             onChange={(e) => setDepth(e.target.value as "brief" | "deep")}
-            className="rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none"
+            className="min-h-11 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none sm:text-sm"
           >
             <option value="brief">Brief</option>
             <option value="deep">Deep Dive</option>
@@ -97,7 +97,7 @@ function ResearchPage() {
           <button
             onClick={run}
             disabled={busy || !query.trim()}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />

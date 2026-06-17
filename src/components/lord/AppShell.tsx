@@ -13,6 +13,8 @@ import {
   LogOut,
   LogIn,
   User as UserIcon,
+  Menu,
+  X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +37,11 @@ const NAV = [
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
+const PRIMARY_NAV = NAV.filter((item) =>
+  ["/", "/chat", "/voice", "/memory"].includes(item.to),
+);
+const SECONDARY_NAV = NAV.filter((item) => !PRIMARY_NAV.some((primary) => primary.to === item.to));
+
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = location.pathname;
 
   const [user, setUser] = useState<User | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -64,8 +72,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid opacity-30" />
 
       {/* Top status bar */}
-      <header className="sticky top-0 z-40 border-b border-border/40 bg-background/40 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
+      <header className="mobile-safe-top sticky top-0 z-40 border-b border-border/40 bg-background/70 backdrop-blur-xl">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 sm:px-4 md:px-6">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border/60 bg-background/40 text-muted-foreground md:hidden"
+            aria-label="Open navigation"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <div className="relative h-9 w-9 shrink-0">
               <div className="absolute inset-0 animate-pulse-glow rounded-full bg-primary/20" />
@@ -89,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </Link>
 
-          <div className="hidden items-center gap-2 font-mono text-xs text-muted-foreground md:flex">
+          <div className="hidden items-center justify-center gap-2 font-mono text-xs text-muted-foreground lg:flex">
             <span className="h-2 w-2 animate-blink rounded-full bg-[var(--hud-success)] shadow-[0_0_8px_var(--hud-success)]" />
             <span>SYSTEM ONLINE</span>
             <span className="mx-2 text-border">|</span>
@@ -100,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="px-3 pb-28 pt-4 md:px-6 md:pb-10 md:pl-80">
+      <main className="mobile-app-main px-3 pb-28 pt-4 sm:px-4 md:px-6 md:pb-10 md:pl-80">
         <motion.div
           key={path}
           initial={{ opacity: 0, y: 12 }}
@@ -110,6 +125,54 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </motion.div>
       </main>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <button
+            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation overlay"
+          />
+          <aside className="mobile-safe-top mobile-safe-bottom hud-panel absolute bottom-0 left-0 top-0 flex w-[min(86vw,22rem)] flex-col gap-4 overflow-y-auto rounded-none border-l-0 border-t-0 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-display text-lg font-bold gradient-text">LORD</div>
+                <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Mobile command</div>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-md border border-border/60 text-muted-foreground"
+                aria-label="Close navigation"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <HealthHud compact />
+            <ul className="grid gap-2">
+              {SECONDARY_NAV.map(({ to, label, icon: Icon }) => {
+                const active = to === "/" ? path === "/" : path.startsWith(to);
+                return (
+                  <li key={to}>
+                    <Link
+                      to={to}
+                      onClick={() => setDrawerOpen(false)}
+                      className={cn(
+                        "flex min-h-12 items-center gap-3 rounded-md px-3 text-sm transition-all",
+                        active
+                          ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]"
+                          : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                      )}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" />
+                      <span>{label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
+        </div>
+      )}
 
       {/* Side rail (desktop) */}
       <nav className="custom-scrollbar fixed left-6 top-24 z-40 hidden h-[calc(100vh-8rem)] w-64 flex-col gap-6 overflow-y-auto pr-2 md:flex">
@@ -140,21 +203,21 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       {/* Bottom nav (mobile) */}
-      <nav className="fixed bottom-3 left-3 right-3 z-40 md:hidden">
-        <ul className="hud-panel flex items-center justify-between gap-1 overflow-x-auto p-2">
-          {NAV.map(({ to, label, icon: Icon }) => {
+      <nav className="mobile-safe-bottom fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 md:hidden">
+        <ul className="hud-panel grid grid-cols-4 gap-1 p-2">
+          {PRIMARY_NAV.map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
             return (
-              <li key={to} className="flex-shrink-0">
+              <li key={to} className="min-w-0">
                 <Link
                   to={to}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 rounded-md px-2.5 py-1.5 text-[10px] transition-all",
+                    "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1.5 text-[10px] transition-all",
                     active ? "bg-primary/15 text-primary" : "text-muted-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="uppercase tracking-wider">{label}</span>
+                  <span className="truncate uppercase tracking-wider">{label}</span>
                 </Link>
               </li>
             );

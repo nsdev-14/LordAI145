@@ -184,8 +184,8 @@ function StudyPage() {
   return (
     <AppShell>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-3xl tracking-wide gradient-text text-glow">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
             Study Command Center
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -193,7 +193,7 @@ function StudyPage() {
           </p>
         </div>
 
-        <nav className="hud-panel inline-flex w-fit gap-1 p-1">
+        <nav className="hud-panel flex w-full gap-1 overflow-x-auto p-1 sm:w-fit">
           {(
             [
               { id: "tutor", label: "Ask LORD", icon: MessageSquare },
@@ -205,7 +205,7 @@ function StudyPage() {
               key={id}
               onClick={() => setMode(id)}
               className={cn(
-                "inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition",
+                "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition sm:px-4",
                 mode === id
                   ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_18px_var(--hud)]"
                   : "text-muted-foreground hover:text-primary",
@@ -287,16 +287,16 @@ function TutorMode() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <div className="hud-panel relative flex h-[68vh] min-h-[520px] flex-col overflow-hidden">
+      <div className="hud-panel relative flex h-[calc(100svh-13rem)] min-h-[430px] flex-col overflow-hidden sm:min-h-[520px] lg:h-[68vh]">
         <CornerBrackets />
-        <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto p-5 custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-3 custom-scrollbar sm:space-y-5 sm:p-5">
           {messages.map((m) =>
             m.role === "assistant" ? (
               <div key={m.id} className="flex items-start gap-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                   <Sparkles className="h-4 w-4" />
                 </div>
-                <div className="max-w-2xl rounded-2xl rounded-tl-none border border-border/60 bg-card/60 p-3 text-sm leading-relaxed whitespace-pre-wrap">
+                <div className="min-w-0 max-w-[min(42rem,calc(100vw-5.5rem))] rounded-2xl rounded-tl-none border border-border/60 bg-card/60 p-3 text-sm leading-relaxed whitespace-pre-wrap">
                   {m.text || (
                     <span className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" /> thinking…
@@ -306,7 +306,7 @@ function TutorMode() {
               </div>
             ) : (
               <div key={m.id} className="flex justify-end">
-                <div className="max-w-2xl rounded-2xl rounded-tr-none bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[0_0_18px_var(--hud)] whitespace-pre-wrap">
+                <div className="min-w-0 max-w-[min(42rem,calc(100vw-4rem))] rounded-2xl rounded-tr-none bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[0_0_18px_var(--hud)] whitespace-pre-wrap">
                   {m.text}
                 </div>
               </div>
@@ -335,10 +335,10 @@ function TutorMode() {
         </div>
 
         <div className="border-t border-border/60 bg-background/40 p-3">
-          <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-background/60 p-2 focus-within:border-primary/60 focus-within:shadow-[0_0_18px_var(--hud)]">
+          <div className="flex items-center gap-1 rounded-2xl border border-border/60 bg-background/60 p-2 focus-within:border-primary/60 focus-within:shadow-[0_0_18px_var(--hud)] sm:gap-2">
             <button
               type="button"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-muted-foreground hover:text-primary"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground hover:text-primary sm:h-9 sm:w-9"
               title="Attach"
             >
               <Plus className="h-4 w-4" />
@@ -348,11 +348,11 @@ function TutorMode() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
               placeholder="How can LORD help?"
-              className="flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
             />
             <button
               type="button"
-              className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:text-primary"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-muted-foreground hover:text-primary sm:h-9 sm:w-9"
               title="Voice"
             >
               <Mic className="h-4 w-4" />
@@ -360,7 +360,7 @@ function TutorMode() {
             <button
               onClick={() => send()}
               disabled={busy || !input.trim()}
-              className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)] disabled:opacity-40 sm:h-9 sm:w-9"
               title="Send"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -444,13 +444,13 @@ function TasksMode() {
         <div className="mb-2 px-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Modules
         </div>
-        <ul className="space-y-1">
+        <ul className="grid gap-1 sm:grid-cols-2 lg:block lg:space-y-1">
           {TASK_TOOLS.map(({ id, label, icon: Icon, desc }) => (
             <li key={id}>
               <button
                 onClick={() => setActiveId(id)}
                 className={cn(
-                  "flex w-full items-start gap-3 rounded-md px-3 py-2 text-left transition",
+                  "flex min-h-12 w-full items-start gap-3 rounded-md px-3 py-2 text-left transition",
                   activeId === id
                     ? "bg-primary/15 text-primary shadow-[0_0_14px_var(--hud)]"
                     : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
@@ -585,7 +585,7 @@ function TestPrepMode() {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
       {/* Main panel */}
-      <div className="hud-panel relative p-5">
+      <div className="hud-panel relative p-4 sm:p-5">
         <CornerBrackets />
         <div className="mb-6 flex items-center gap-3">
           <ClipboardCheck className="h-5 w-5 text-primary" />
