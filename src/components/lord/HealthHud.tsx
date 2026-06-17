@@ -64,7 +64,7 @@ export function HealthHud() {
       title="System Intelligence"
       subtitle={`Health: ${healthStatus.toUpperCase()}`}
       className={cn("mb-4 w-64 border-l-4 transition-all duration-500", borderClass)}
-      headerExtra={
+      action={
         <button
           onClick={() => setCollapsed(true)}
           className="text-muted-foreground hover:text-primary"
