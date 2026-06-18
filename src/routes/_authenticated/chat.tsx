@@ -120,7 +120,7 @@ function ChatPage() {
     id: conversationId ?? "draft",
     messages: initialMessages,
     transport: new DefaultChatTransport({
-      api: "/api/chat",
+      api: `${getApiBaseUrl()}/api/chat`,
       body: () => ({
         mode,
         context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
