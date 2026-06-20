@@ -6,7 +6,7 @@
 
 ### Logical Operational Resource Director
 
-**A Next-Generation AI Inspired by J.A.R.V.I.S**
+**A Next-Generation AI**
 
 [![React](https://img.shields.io/badge/React-19-blue?style=flat-square)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square)]()
