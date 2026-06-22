@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      data.subscription.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
   }, [navigate]);
 
