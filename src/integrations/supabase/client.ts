@@ -9,6 +9,8 @@ function createSupabaseClient() {
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
+  console.log("[Supabase] Creating client with URL:", SUPABASE_URL?.split(".")[0]);
+
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
       ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
@@ -19,7 +21,7 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
       storage: typeof window !== "undefined" ? localStorage : undefined,
       detectSessionInUrl: true,
@@ -27,6 +29,8 @@ function createSupabaseClient() {
       autoRefreshToken: true,
     },
   });
+  console.log("[Supabase] Client created with detectSessionInUrl: true");
+  return client;
 }
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;

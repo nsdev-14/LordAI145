@@ -67,7 +67,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         await supabase.from("user_settings").upsert(
           {
             user_id: user.id,
-            preferences: {},
           },
           { onConflict: "user_id" },
         );
@@ -77,22 +76,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
 
     const initializeSession = async () => {
-      if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
-        const { data, error } = await supabase.auth.getSessionFromUrl();
-        if (error) {
-          console.error("Supabase OAuth callback parsing failed", error);
-        } else if (data.session?.user) {
-          await ensureUserDefaults(data.session.user);
-          setUser(data.session.user);
-          try {
-            navigate({ to: "/chat", replace: true });
-          } catch (e) {
-            // ignore navigation race conditions
-          }
-        }
-      }
-
+      console.log("[AppShell] Initializing session, pathname:", window.location.pathname);
+      
       const { data } = await supabase.auth.getSession();
+      console.log("[AppShell] getSession result:", { user: data.session?.user?.email });
       if (!mounted) return;
       const user = data.session?.user ?? null;
       setUser(user);
@@ -103,10 +90,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     initializeSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[AppShell] Auth state changed:", event, session?.user?.email);
       const user = session?.user ?? null;
+      if (!mounted) return;
       setUser(user);
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && user) {
+        console.log("[AppShell] onAuthStateChange - user authenticated, navigating to /chat");
         navigate({ to: "/chat" });
         void ensureUserDefaults(user);
       }
@@ -114,11 +104,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      data.subscription.unsubscribe();
     };
   }, [navigate]);
 
   const signOut = async () => {
+    console.log("[AppShell] Signing out user");
     await qc.cancelQueries();
     qc.clear();
     await supabase.auth.signOut();

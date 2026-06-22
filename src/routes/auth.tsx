@@ -25,21 +25,22 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log("[Auth Page] Mounted at origin:", window.location.origin);
+    console.log("[Auth Page] Full URL:", window.location.href);
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       if (typeof window === "undefined") return;
 
-      if (window.location.hash.includes("access_token=") || window.location.hash.includes("refresh_token=")) {
-        const { data, error } = await supabase.auth.getSessionFromUrl();
-        if (!error && data.session?.user && mounted) {
-          navigate({ to: "/chat", replace: true });
-          return;
-        }
-      }
-
+      console.log("[Auth] Initializing auth");
+      
       const { data } = await supabase.auth.getSession();
+      console.log("[Auth] getSession result:", { user: data.session?.user?.email });
       if (mounted && data.session?.user) {
+        console.log("[Auth] Existing session found, navigating to /chat");
         navigate({ to: "/chat" });
       }
     };
@@ -91,6 +92,7 @@ function AuthPage() {
     setInfo(null);
     setBusy(true);
     try {
+      console.log("[Auth] Starting Google OAuth with redirectTo:", window.location.origin);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -99,8 +101,9 @@ function AuthPage() {
         },
       });
       if (error) throw error;
-      // The client will detect the session from the redirect URL on load.
+      console.log("[Auth] Google OAuth initiated (browser will redirect)");
     } catch (err) {
+      console.error("[Auth] Google OAuth error:", err);
       setError(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
       setBusy(false);
