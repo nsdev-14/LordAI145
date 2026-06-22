@@ -32,22 +32,32 @@ function AuthPage() {
   useEffect(() => {
     let mounted = true;
 
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Auth] onAuthStateChange", event, session?.user?.email, "pathname:", window.location.pathname, "hash:", window.location.hash.substring(0, 100));
+      if (!mounted) return;
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+        console.log(`[Auth] ${event}, navigating to /chat for user`, session.user.email);
+        navigate({ to: "/chat", replace: true });
+      }
+    });
+
     const initializeAuth = async () => {
       if (typeof window === "undefined") return;
 
-      console.log("[Auth] Initializing auth");
-      
+      console.log("[Auth] Initializing auth, pathname:", window.location.pathname, "hash:", window.location.hash.substring(0, 100));
       const { data } = await supabase.auth.getSession();
       console.log("[Auth] getSession result:", { user: data.session?.user?.email });
       if (mounted && data.session?.user) {
         console.log("[Auth] Existing session found, navigating to /chat");
-        navigate({ to: "/chat" });
+        navigate({ to: "/chat", replace: true });
       }
     };
 
     initializeAuth();
+
     return () => {
       mounted = false;
+      authListener.subscription.unsubscribe();
     };
   }, [navigate]);
 
@@ -92,11 +102,12 @@ function AuthPage() {
     setInfo(null);
     setBusy(true);
     try {
-      console.log("[Auth] Starting Google OAuth with redirectTo:", window.location.origin);
+      const redirectUrl = `${window.location.origin}/auth`;
+      console.log("[Auth] Starting Google OAuth with redirectTo:", redirectUrl);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: redirectUrl,
           queryParams: { prompt: "select_account" },
         },
       });

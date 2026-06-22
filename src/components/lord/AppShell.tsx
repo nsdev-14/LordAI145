@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
 
     const initializeSession = async () => {
-      console.log("[AppShell] Initializing session, pathname:", window.location.pathname);
+      console.log("[AppShell] Initializing session, pathname:", window.location.pathname, "hash:", window.location.hash.substring(0, 100));
       
       const { data } = await supabase.auth.getSession();
       console.log("[AppShell] getSession result:", { user: data.session?.user?.email });
@@ -90,8 +90,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     initializeSession();
 
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[AppShell] Auth state changed:", event, session?.user?.email);
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[AppShell] Auth state changed:", event, session?.user?.email, "pathname:", window.location.pathname, "hash:", window.location.hash.substring(0, 100));
       const user = session?.user ?? null;
       if (!mounted) return;
       setUser(user);
