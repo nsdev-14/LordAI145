@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/chat")({
           return apiErrorResponse(
             503,
             "AI_NOT_CONFIGURED",
-            "AI is temporarily unavailable.",
+            "AI is not configured. Add LOVABLE_API_KEY to the server environment.",
             requestId,
           );
         }

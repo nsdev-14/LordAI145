@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { Loader2, Mail, Lock, User as UserIcon, Chrome } from "lucide-react";
@@ -23,46 +22,30 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const hasNavigatedAfterAuth = useRef(false);
 
-  useEffect(() => {
-    console.log("[Auth Page] Mounted at origin:", window.location.origin);
-    console.log("[Auth Page] Full URL:", window.location.href);
-  }, []);
+  const navigateAfterAuth = useCallback(() => {
+    if (hasNavigatedAfterAuth.current) return;
+    hasNavigatedAfterAuth.current = true;
+    navigate({ to: "/chat", replace: true });
+  }, [navigate]);
 
   useEffect(() => {
     let mounted = true;
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(
-        "[Auth] onAuthStateChange",
-        event,
-        session?.user?.email,
-        "pathname:",
-        window.location.pathname,
-        "hash:",
-        window.location.hash.substring(0, 100),
-      );
       if (!mounted) return;
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
-        console.log(`[Auth] ${event}, navigating to /chat for user`, session.user.email);
-        navigate({ to: "/chat", replace: true });
+        navigateAfterAuth();
       }
     });
 
     const initializeAuth = async () => {
       if (typeof window === "undefined") return;
 
-      console.log(
-        "[Auth] Initializing auth, pathname:",
-        window.location.pathname,
-        "hash:",
-        window.location.hash.substring(0, 100),
-      );
       const { data } = await supabase.auth.getSession();
-      console.log("[Auth] getSession result:", { user: data.session?.user?.email });
       if (mounted && data.session?.user) {
-        console.log("[Auth] Existing session found, navigating to /chat");
-        navigate({ to: "/chat", replace: true });
+        navigateAfterAuth();
       }
     };
 
@@ -72,7 +55,7 @@ function AuthPage() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigateAfterAuth]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +99,6 @@ function AuthPage() {
     setBusy(true);
     try {
       const redirectUrl = `${window.location.origin}/auth`;
-      console.log("[Auth] Starting Google OAuth with redirectTo:", redirectUrl);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -125,7 +107,6 @@ function AuthPage() {
         },
       });
       if (error) throw error;
-      console.log("[Auth] Google OAuth initiated (browser will redirect)");
     } catch (err) {
       console.error("[Auth] Google OAuth error:", err);
       setError(err instanceof Error ? err.message : "Google sign-in failed");
