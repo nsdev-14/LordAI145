@@ -240,11 +240,16 @@ function ChatPage() {
         role: "user",
         content: text,
       });
-      if (insertError) throw insertError;
+      if (insertError) {
+  console.error("INSERT ERROR:");
+  console.error(JSON.stringify(insertError, null, 2));
+  throw insertError;
+}
       setInput("");
       sendMessage({ text });
     } catch (err) {
-      console.error("[chat] failed to send", err);
+      console.error("[chat] failed to send");
+      console.error(err);
       setPersistenceError(err instanceof Error ? err.message : "Failed to save this message.");
     }
   };

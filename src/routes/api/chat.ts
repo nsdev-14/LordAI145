@@ -38,6 +38,7 @@ export const Route = createFileRoute("/api/chat")({
     handlers: {
       POST: async ({ request }) => {
         const requestId = crypto.randomUUID();
+        console.log("OPENROUTER_API_KEY loaded:", !!process.env.OPENROUTER_API_KEY);
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
           console.error(`[chat:${requestId}] OpenRouter API key is not configured`);
@@ -81,13 +82,18 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         try {
-          const gateway = createOpenRouterProvider(apiKey);
+          const gateway = createOpenRouterProvider  (apiKey);
           const result = streamText({
-            model: gateway(modelId),
-            system: systemPrompt,
-            messages: await convertToModelMessages(body.messages as unknown as UIMessage[]),
-            onError: ({ error }) => console.error(`[chat:${requestId}] Stream failed`, error),
-          });
+  model: gateway(modelId),
+  system: systemPrompt,
+  messages: await convertToModelMessages(
+    body.messages as unknown as UIMessage[]
+  ),
+  maxOutputTokens: 1024,
+  onError: ({ error }) => {
+    console.error(`[chat:${requestId}] Stream failed`, error);
+  },
+});
           return result.toUIMessageStreamResponse();
         } catch (err) {
           const detail = getSafeErrorMessage(err);

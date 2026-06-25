@@ -1,11 +1,11 @@
 /** Client-safe LORD constants (no server-only imports). */
 
 export const LORD_MODELS = {
-  fast: "google/gemini-3.1-flash-lite-preview",
-  balanced: "google/gemini-3-flash-preview",
-  reasoning: "google/gemini-3.1-pro-preview",
-  coding: "google/gemini-3.5-flash",
-  creative: "google/gemini-2.5-pro",
+  fast: "google/gemma-3n-e4b-it:free",
+  balanced: "meta-llama/llama-3.3-70b-instruct:free",
+  reasoning: "openai/gpt-oss-120b:free",
+  coding: "qwen/qwen3-coder:free",
+  creative: "nousresearch/hermes-3-llama-3.1-405b:free"
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
