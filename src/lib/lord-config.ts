@@ -2,7 +2,7 @@
 
 export const LORD_MODELS = {
   fast: "google/gemma-3n-e4b-it:free",
-  balanced: "openrouter/owl-alpha-7b:free",
+  balanced: "google/gemma-3-27b-it:free",
   reasoning: "openai/gpt-oss-120b:free",
   coding: "qwen/qwen3-coder:free",
   creative: "nousresearch/hermes-3-llama-3.1-405b:free"
