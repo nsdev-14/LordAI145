@@ -76,13 +76,23 @@ function ChatPage() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [savingMessage, setSavingMessage] = useState(false);
   const [pendingInitialSend, setPendingInitialSend] = useState<{
     conversationId: string;
-    messageId: string;
-    text: string;
+    message: UIMessage;
   } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
+  const activeRequestModeRef = useRef<LordMode>(mode);
+  const requestBodyRef = useRef({
+    mode,
+    context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
+  });
+
+  requestBodyRef.current = {
+    mode,
+    context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
+  };
 
   // Conversations list (Supabase)
   const { data: conversations = [] } = useQuery({
@@ -124,20 +134,34 @@ function ChatPage() {
     [storedMessages],
   );
 
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `${getApiBaseUrl()}/api/chat`,
+        headers: getSupabaseAuthHeaders,
+        body: () => requestBodyRef.current,
+      }),
+    [],
+  );
+
   const { messages, setMessages, sendMessage, status, error, regenerate } = useChat({
     id: conversationId ?? "draft",
     messages: initialMessages,
-    transport: new DefaultChatTransport({
-      api: `${getApiBaseUrl()}/api/chat`,
-      headers: getSupabaseAuthHeaders,
-      body: () => ({
-        mode,
-        context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
-      }),
-    }),
+    transport,
     onFinish: async ({ messages: completed, isError }) => {
       const activeConversationId = activeConversationIdRef.current;
-      if (isError || !activeConversationId) return;
+      const requestMode = activeRequestModeRef.current;
+      if (isError || !activeConversationId) {
+        console.warn(
+          JSON.stringify({
+            event: "chat_stream_finish_skipped",
+            conversationId: activeConversationId,
+            mode: requestMode,
+            isError,
+          }),
+        );
+        return;
+      }
 
       const assistantMessage = completed
         .slice()
@@ -151,30 +175,65 @@ function ChatPage() {
 
       if (content.trim()) {
         const assistantMessageId = crypto.randomUUID();
+        console.info(
+          JSON.stringify({
+            event: "supabase_insert_start",
+            table: "messages",
+            role: "assistant",
+            conversationId: activeConversationId,
+            messageId: assistantMessageId,
+            mode: requestMode,
+          }),
+        );
         const { error: insertError } = await supabase.from("messages").insert({
           id: assistantMessageId,
           conversation_id: activeConversationId,
           user_id: user.id,
           role: "assistant",
           content,
-          model: mode,
+          model: requestMode,
         });
         if (insertError) {
           console.error(
-            `[chat] failed to persist assistant message ${assistantMessageId} for conversation ${activeConversationId}`,
-            insertError,
+            JSON.stringify({
+              event: "supabase_insert_error",
+              table: "messages",
+              role: "assistant",
+              conversationId: activeConversationId,
+              messageId: assistantMessageId,
+              mode: requestMode,
+              error: insertError.message,
+            }),
           );
           setPersistenceError(insertError.message);
         } else {
-          console.log(
-            `[chat] persisted assistant message ${assistantMessageId} for conversation ${activeConversationId} using model ${mode}`,
+          console.info(
+            JSON.stringify({
+              event: "supabase_insert_success",
+              table: "messages",
+              role: "assistant",
+              conversationId: activeConversationId,
+              messageId: assistantMessageId,
+              mode: requestMode,
+            }),
           );
         }
       }
-      await supabase
+      const { error: updateError } = await supabase
         .from("conversations")
         .update({ last_message_at: new Date().toISOString() })
         .eq("id", activeConversationId);
+      if (updateError) {
+        console.error(
+          JSON.stringify({
+            event: "supabase_update_error",
+            table: "conversations",
+            conversationId: activeConversationId,
+            error: updateError.message,
+          }),
+        );
+        setPersistenceError(updateError.message);
+      }
       qc.invalidateQueries({ queryKey: ["conversations", user.id] });
       qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
     },
@@ -190,6 +249,14 @@ function ChatPage() {
       .select()
       .single();
     if (error) throw error;
+    console.info(
+      JSON.stringify({
+        event: "supabase_insert_success",
+        table: "conversations",
+        conversationId: data.id,
+        mode,
+      }),
+    );
     setConversationId(data.id);
     activeConversationIdRef.current = data.id;
     qc.invalidateQueries({ queryKey: ["conversations", user.id] });
@@ -206,7 +273,11 @@ function ChatPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("messages").delete().eq("conversation_id", id);
+      const { error: messagesError } = await supabase
+        .from("messages")
+        .delete()
+        .eq("conversation_id", id);
+      if (messagesError) throw messagesError;
       const { error } = await supabase.from("conversations").delete().eq("id", id);
       if (error) throw error;
     },
@@ -218,6 +289,8 @@ function ChatPage() {
 
   const startNewChat = () => {
     setPersistenceError(null);
+    setSavingMessage(false);
+    setPendingInitialSend(null);
     setConversationId(null);
     activeConversationIdRef.current = null;
     setMessages([]);
@@ -225,6 +298,7 @@ function ChatPage() {
 
   const loadConversation = (id: string) => {
     setPersistenceError(null);
+    setPendingInitialSend(null);
     setConversationId(id);
     activeConversationIdRef.current = id;
     setMessages([]); // will be replaced by initialMessages once query loads
@@ -234,7 +308,7 @@ function ChatPage() {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, status]);
 
-  const busy = status === "submitted" || status === "streaming";
+  const busy = savingMessage || status === "submitted" || status === "streaming";
 
   useEffect(() => {
     if (!conversationId || pendingInitialSend || busy) return;
@@ -250,15 +324,17 @@ function ChatPage() {
       return;
     }
 
-    setMessages([
-      {
-        id: pendingInitialSend.messageId,
-        role: "user",
-        parts: [{ type: "text", text: pendingInitialSend.text }],
-      },
-    ]);
+    setMessages([pendingInitialSend.message]);
     setPendingInitialSend(null);
-    void sendMessage();
+    console.info(
+      JSON.stringify({
+        event: "chat_stream_start",
+        conversationId,
+        mode: activeRequestModeRef.current,
+        messageId: pendingInitialSend.message.id,
+      }),
+    );
+    void sendMessage().finally(() => setSavingMessage(false));
   }, [conversationId, pendingInitialSend, sendMessage, setMessages, status]);
 
   const submit = async (e?: React.FormEvent) => {
@@ -267,12 +343,35 @@ function ChatPage() {
     if (!text || busy) return;
     setPersistenceError(null);
     const isNewConversation = !conversationId;
+    setSavingMessage(true);
     try {
       const convId = await ensureConversation(text);
       activeConversationIdRef.current = convId;
-      console.log(`[chat] submitting user message to conversation ${convId} mode=${mode}`);
-      // Persist the user message immediately
+      activeRequestModeRef.current = mode;
+      console.info(
+        JSON.stringify({
+          event: "chat_submit",
+          conversationId: convId,
+          mode,
+          isNewConversation,
+        }),
+      );
       const userMsgId = crypto.randomUUID();
+      const userMessage: UIMessage = {
+        id: userMsgId,
+        role: "user",
+        parts: [{ type: "text", text }],
+      };
+      console.info(
+        JSON.stringify({
+          event: "supabase_insert_start",
+          table: "messages",
+          role: "user",
+          conversationId: convId,
+          messageId: userMsgId,
+          mode,
+        }),
+      );
       const { error: insertError } = await supabase.from("messages").insert({
         id: userMsgId,
         conversation_id: convId,
@@ -281,26 +380,121 @@ function ChatPage() {
         content: text,
       });
       if (insertError) {
-        console.error("INSERT ERROR:");
-        console.error(JSON.stringify(insertError, null, 2));
+        console.error(
+          JSON.stringify({
+            event: "supabase_insert_error",
+            table: "messages",
+            role: "user",
+            conversationId: convId,
+            messageId: userMsgId,
+            mode,
+            error: insertError.message,
+          }),
+        );
         throw insertError;
       }
+      console.info(
+        JSON.stringify({
+          event: "supabase_insert_success",
+          table: "messages",
+          role: "user",
+          conversationId: convId,
+          messageId: userMsgId,
+          mode,
+        }),
+      );
+      const { error: touchError } = await supabase
+        .from("conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", convId);
+      if (touchError) {
+        console.error(
+          JSON.stringify({
+            event: "supabase_update_error",
+            table: "conversations",
+            conversationId: convId,
+            error: touchError.message,
+          }),
+        );
+        throw touchError;
+      }
+      qc.invalidateQueries({ queryKey: ["conversations", user.id] });
       setInput("");
       if (isNewConversation) {
-        setPendingInitialSend({ conversationId: convId, messageId: userMsgId, text });
+        setPendingInitialSend({ conversationId: convId, message: userMessage });
       } else {
-        void sendMessage({ text });
+        console.info(
+          JSON.stringify({
+            event: "chat_stream_start",
+            conversationId: convId,
+            mode,
+            messageId: userMsgId,
+          }),
+        );
+        void sendMessage(userMessage).finally(() => setSavingMessage(false));
       }
     } catch (err) {
-      console.error("[chat] failed to send");
-      console.error(err);
+      console.error(
+        JSON.stringify({
+          event: "chat_submit_error",
+          message: err instanceof Error ? err.message : "Failed to send message",
+        }),
+      );
+      setSavingMessage(false);
       setPersistenceError(err instanceof Error ? err.message : "Failed to save this message.");
     }
   };
 
-  const regenerateLast = () => {
+  const regenerateLast = async () => {
     if (busy) return;
-    regenerate();
+    const activeConversationId = activeConversationIdRef.current;
+    const lastAssistant = messages
+      .slice()
+      .reverse()
+      .find((message) => message.role === "assistant");
+    try {
+      setPersistenceError(null);
+      setSavingMessage(true);
+      activeRequestModeRef.current = mode;
+      if (activeConversationId && lastAssistant) {
+        const { error: deleteError } = await supabase
+          .from("messages")
+          .delete()
+          .eq("conversation_id", activeConversationId)
+          .eq("id", lastAssistant.id);
+        if (deleteError) throw deleteError;
+        console.info(
+          JSON.stringify({
+            event: "supabase_delete_success",
+            table: "messages",
+            role: "assistant",
+            conversationId: activeConversationId,
+            messageId: lastAssistant.id,
+            mode,
+          }),
+        );
+      }
+      console.info(
+        JSON.stringify({
+          event: "chat_stream_start",
+          conversationId: activeConversationId,
+          mode,
+          trigger: "regenerate",
+        }),
+      );
+      await regenerate();
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: "chat_regenerate_error",
+          conversationId: activeConversationId,
+          message: err instanceof Error ? err.message : "Failed to regenerate response",
+        }),
+      );
+      setPersistenceError(err instanceof Error ? err.message : "Failed to regenerate response.");
+    } finally {
+      setSavingMessage(false);
+    }
   };
 
   return (

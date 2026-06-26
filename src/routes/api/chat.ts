@@ -52,19 +52,37 @@ function getModelUnavailableError(message: string) {
   );
 }
 
+function logChat(event: string, payload: Record<string, unknown>) {
+  console.info(JSON.stringify({ event, ...payload }));
+}
+
+function getLastUserText(messages: UIMessage[]) {
+  const lastUser = messages
+    .slice()
+    .reverse()
+    .find((message) => message.role === "user");
+  return (
+    lastUser?.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => (part as { text: string }).text)
+      .join("")
+      .slice(0, 120) ?? ""
+  );
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     middleware: [requireSupabaseRequestAuth],
     handlers: {
       POST: async ({ request }) => {
         const requestId = crypto.randomUUID();
-        console.log(
-          `[chat:${requestId}] OPENROUTER_API_KEY loaded:`,
-          !!process.env.OPENROUTER_API_KEY,
-        );
+        logChat("api_chat_request_start", {
+          requestId,
+          hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+        });
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
-          console.error(`[chat:${requestId}] OpenRouter API key is not configured`);
+          logChat("api_chat_config_error", { requestId, missing: "OPENROUTER_API_KEY" });
           return apiErrorResponse(
             503,
             "AI_NOT_CONFIGURED",
@@ -77,7 +95,7 @@ export const Route = createFileRoute("/api/chat")({
         try {
           rawBody = await request.json();
         } catch {
-          console.warn(`[chat:${requestId}] Invalid JSON body`);
+          logChat("api_chat_invalid_json", { requestId });
           return apiErrorResponse(
             400,
             "INVALID_REQUEST",
@@ -88,7 +106,10 @@ export const Route = createFileRoute("/api/chat")({
 
         const parsed = ChatRequestSchema.safeParse(rawBody);
         if (!parsed.success) {
-          console.warn(`[chat:${requestId}] Invalid request`, parsed.error.flatten());
+          logChat("api_chat_invalid_request", {
+            requestId,
+            issues: parsed.error.issues.map((issue) => issue.message),
+          });
           return apiErrorResponse(
             400,
             "INVALID_REQUEST",
@@ -100,14 +121,18 @@ export const Route = createFileRoute("/api/chat")({
         const body = parsed.data;
         const mode: LordMode = body.mode ?? "balanced";
         const modelCandidates = getLordModelCandidates(mode);
+        const uiMessages = body.messages as unknown as UIMessage[];
         const systemPrompt = body.context
           ? `${LORD_SYSTEM_PROMPT}\n\nCURRENT APPLICATION CONTEXT:\n${JSON.stringify(body.context, null, 2)}`
           : LORD_SYSTEM_PROMPT;
 
-        console.log(
-          `[chat:${requestId}] mode=${mode} modelCandidates=${modelCandidates.join(",")}`,
-        );
-        console.log(`[chat:${requestId}] message count=${body.messages.length}`);
+        logChat("api_chat_request_validated", {
+          requestId,
+          mode,
+          modelCandidates,
+          messageCount: body.messages.length,
+          lastUserPreview: getLastUserText(uiMessages),
+        });
 
         const gateway = createOpenRouterProvider(apiKey);
         let lastError: unknown = null;
@@ -115,25 +140,69 @@ export const Route = createFileRoute("/api/chat")({
 
         for (const candidateModel of modelCandidates) {
           try {
-            console.log(`[chat:${requestId}] attempting model=${candidateModel}`);
+            let sawFirstChunk = false;
+            logChat("openrouter_model_attempt", { requestId, mode, model: candidateModel });
             const result = streamText({
               model: gateway(candidateModel),
               system: systemPrompt,
-              messages: await convertToModelMessages(body.messages as unknown as UIMessage[]),
+              messages: await convertToModelMessages(uiMessages),
               maxOutputTokens: 1024,
+              maxRetries: 2,
+              timeout: 45_000,
+              experimental_onStart: () => {
+                logChat("openrouter_stream_start", { requestId, mode, model: candidateModel });
+              },
+              onChunk: () => {
+                if (!sawFirstChunk) {
+                  sawFirstChunk = true;
+                  logChat("openrouter_stream_first_chunk", {
+                    requestId,
+                    mode,
+                    model: candidateModel,
+                  });
+                }
+              },
               onError: ({ error }) => {
-                console.error(`[chat:${requestId}] OpenRouter stream error`, error);
+                logChat("openrouter_stream_error", {
+                  requestId,
+                  mode,
+                  model: candidateModel,
+                  error: getSafeErrorMessage(error),
+                });
+              },
+              onFinish: ({ finishReason, usage }) => {
+                logChat("openrouter_stream_end", {
+                  requestId,
+                  mode,
+                  model: candidateModel,
+                  finishReason,
+                  usage,
+                });
               },
             });
-            return result.toUIMessageStreamResponse();
+            return result.toUIMessageStreamResponse({
+              headers: {
+                "Cache-Control": "no-store",
+                "X-LordAI-Request-Id": requestId,
+                "X-LordAI-Model": candidateModel,
+              },
+            });
           } catch (err) {
             lastError = err;
             lastDetail = getSafeErrorMessage(err);
-            console.error(`[chat:${requestId}] model ${candidateModel} failed: ${lastDetail}`, err);
+            logChat("openrouter_model_error", {
+              requestId,
+              mode,
+              model: candidateModel,
+              error: lastDetail,
+            });
             if (!getRateLimitError(lastDetail) && !getModelUnavailableError(lastDetail)) break;
-            console.warn(
-              `[chat:${requestId}] falling back from ${candidateModel} due to ${lastDetail}`,
-            );
+            logChat("openrouter_fallback_model", {
+              requestId,
+              mode,
+              failedModel: candidateModel,
+              reason: lastDetail,
+            });
           }
         }
 
