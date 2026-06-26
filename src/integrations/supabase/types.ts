@@ -68,7 +68,7 @@ export type Database = {
       messages: {
         Row: {
           content: string;
-          conversation_id: string;
+          chat_id: string;
           created_at: string;
           id: string;
           model: string | null;
@@ -77,7 +77,7 @@ export type Database = {
         };
         Insert: {
           content: string;
-          conversation_id: string;
+          chat_id: string;
           created_at?: string;
           id?: string;
           model?: string | null;
@@ -86,7 +86,7 @@ export type Database = {
         };
         Update: {
           content?: string;
-          conversation_id?: string;
+          chat_id?: string;
           created_at?: string;
           id?: string;
           model?: string | null;
@@ -95,8 +95,8 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "messages_conversation_id_fkey";
-            columns: ["conversation_id"];
+            foreignKeyName: "messages_chat_id_fkey";
+            columns: ["chat_id"];
             isOneToOne: false;
             referencedRelation: "conversations";
             referencedColumns: ["id"];

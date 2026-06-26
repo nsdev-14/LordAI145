@@ -58,10 +58,11 @@ interface ConversationRow {
 
 interface MessageRow {
   id: string;
-  conversation_id: string;
+  chat_id: string;
   user_id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  model: string | null;
   created_at: string;
 }
 
@@ -99,7 +100,7 @@ function ChatPage() {
       const { data, error } = await supabase
         .from("messages")
         .select("*")
-        .eq("conversation_id", conversationId!)
+        .eq("chat_id", conversationId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data as MessageRow[];
@@ -144,17 +145,25 @@ function ChatPage() {
           .join("") ?? "";
 
       if (content.trim()) {
+        const assistantMessageId = crypto.randomUUID();
         const { error: insertError } = await supabase.from("messages").insert({
-          id: crypto.randomUUID(),
-          conversation_id: activeConversationId,
+          id: assistantMessageId,
+          chat_id: activeConversationId,
           user_id: user.id,
           role: "assistant",
           content,
           model: mode,
         });
         if (insertError) {
-          console.error("[chat] failed to persist assistant message", insertError);
+          console.error(
+            `[chat] failed to persist assistant message ${assistantMessageId} for conversation ${activeConversationId}`,
+            insertError,
+          );
           setPersistenceError(insertError.message);
+        } else {
+          console.log(
+            `[chat] persisted assistant message ${assistantMessageId} for conversation ${activeConversationId} using model ${mode}`,
+          );
         }
       }
       await supabase
@@ -192,7 +201,7 @@ function ChatPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("messages").delete().eq("conversation_id", id);
+      await supabase.from("messages").delete().eq("chat_id", id);
       const { error } = await supabase.from("conversations").delete().eq("id", id);
       if (error) throw error;
     },
@@ -230,20 +239,21 @@ function ChatPage() {
     try {
       const convId = await ensureConversation(text);
       activeConversationIdRef.current = convId;
+      console.log(`[chat] submitting user message to conversation ${convId} mode=${mode}`);
       // Persist the user message immediately
       const userMsgId = crypto.randomUUID();
       const { error: insertError } = await supabase.from("messages").insert({
         id: userMsgId,
-        conversation_id: convId,
+        chat_id: convId,
         user_id: user.id,
         role: "user",
         content: text,
       });
       if (insertError) {
-  console.error("INSERT ERROR:");
-  console.error(JSON.stringify(insertError, null, 2));
-  throw insertError;
-}
+        console.error("INSERT ERROR:");
+        console.error(JSON.stringify(insertError, null, 2));
+        throw insertError;
+      }
       setInput("");
       sendMessage({ text });
     } catch (err) {

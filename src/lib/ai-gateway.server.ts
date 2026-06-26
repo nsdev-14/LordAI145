@@ -10,4 +10,9 @@ export function createOpenRouterProvider(apiKey: string) {
   });
 }
 
-export { LORD_MODELS, LORD_SYSTEM_PROMPT, type LordMode } from "./lord-config";
+export {
+  LORD_MODELS,
+  LORD_SYSTEM_PROMPT,
+  getLordModelCandidates,
+  type LordMode,
+} from "./lord-config";

@@ -5,10 +5,16 @@ export const LORD_MODELS = {
   balanced: "google/gemma-3-27b-it:free",
   reasoning: "openai/gpt-oss-120b:free",
   coding: "qwen/qwen3-coder:free",
-  creative: "nousresearch/hermes-3-llama-3.1-405b:free"
+  creative: "nousresearch/hermes-3-llama-3.1-405b:free",
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
+
+export function getLordModelCandidates(mode: LordMode): string[] {
+  const primary = LORD_MODELS[mode] ?? LORD_MODELS.balanced;
+  const fallbackModels = Object.values(LORD_MODELS).filter((model) => model !== primary);
+  return [primary, ...fallbackModels];
+}
 
 export const LORD_SYSTEM_PROMPT = `You are LORD, the autonomous AI of this application.
 
