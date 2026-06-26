@@ -26,18 +26,18 @@ import { WakeIndicator } from "./WakeIndicator";
 import { HealthHud } from "./HealthHud";
 
 const NAV = [
-  { to: "/", label: "Command", icon: LayoutDashboard },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/voice", label: "Voice", icon: Mic },
-  { to: "/study", label: "Study", icon: GraduationCap },
-  { to: "/productivity", label: "Tasks", icon: Target },
-  { to: "/research", label: "Research", icon: Search },
-  { to: "/memory", label: "Memory", icon: Brain },
-  { to: "/documents", label: "Docs", icon: FileText },
+  { to: "/learn", label: "Learn", icon: GraduationCap },
+  { to: "/explore", label: "Explore", icon: Target },
+  { to: "/search", label: "Search", icon: Search },
+  { to: "/ai", label: "AI", icon: Brain },
+  { to: "/documents", label: "Documents", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/voice", "/memory"].includes(item.to));
+const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/voice", "/learn"].includes(item.to));
 const SECONDARY_NAV = NAV.filter((item) => !PRIMARY_NAV.some((primary) => primary.to === item.to));
 
 export function AppShell({ children }: { children: ReactNode }) {
