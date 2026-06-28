@@ -263,6 +263,29 @@
     opacity: 0.3;
   }
 }
+@keyframes neon-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 18px rgba(0, 255, 255, 0.18),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 40px rgba(0, 255, 255, 0.38),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+@keyframes dock-icon-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
 .animate-pulse-glow {
   animation: pulse-glow 2.4s ease-in-out infinite;
@@ -285,13 +308,45 @@
 .animate-blink {
   animation: blink 1.4s ease-in-out infinite;
 }
+.animate-neon-breathe {
+  animation: neon-breathe 3.5s ease-in-out infinite;
+}
+.animate-dock-icon-in {
+  animation: dock-icon-in 0.22s ease-out both;
+}
 
-/* Subtle grid overlay */
-.bg-grid {
-  background-image:
-    linear-gradient(oklch(0.82 0.18 210 / 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.82 0.18 210 / 0.06) 1px, transparent 1px);
-  background-size: 40px 40px;
+/* Navigation Dock — neon breathing glow */
+@keyframes dock-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 18px rgba(0, 255, 255, 0.15),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 35px rgba(0, 255, 255, 0.32),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes dock-edge-scan {
+  0% {
+    opacity: 0.3;
+    transform: translateY(-40%) scaleX(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0%) scaleX(1);
+  }
+  100% {
+    opacity: 0.3;
+    transform: translateY(40%) scaleX(0.6);
+  }
+}
+
+.nav-dock-breathe {
+  animation: dock-breathe 3.5s ease-in-out infinite;
 }
 
 /* Scrollbar */

@@ -266,6 +266,7 @@ When users ask for help:
 2. Make reasonable assumptions.
 3. Provide the solution.
 4. Offer optional customization.
+5. Avoid using '#' this symbole.
 
 # Security
 

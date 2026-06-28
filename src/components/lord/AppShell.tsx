@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ParticleField } from "./ParticleField";
 import { WakeIndicator } from "./WakeIndicator";
 import { HealthHud } from "./HealthHud";
+import { NavigationDock } from "./NavigationDock";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -163,7 +164,9 @@ if (user) {
         </div>
       </header>
 
-      <main className="mobile-app-main px-3 pb-28 pt-4 sm:px-4 md:px-6 md:pb-10 md:pl-80">
+      <NavigationDock />
+
+      <main className="mobile-app-main px-3 pb-28 pt-4 sm:px-4 md:px-6 md:pb-10 md:pl-24">
         <motion.div
           key={path}
           initial={{ opacity: 0, y: 12 }}
@@ -223,34 +226,6 @@ if (user) {
           </aside>
         </div>
       )}
-
-      {/* Side rail (desktop) */}
-      <nav className="custom-scrollbar fixed left-6 top-24 z-40 hidden h-[calc(100vh-8rem)] w-64 flex-col gap-6 overflow-y-auto pr-2 md:flex">
-        <HealthHud />
-        <div className="flex-1">
-          <ul className="hud-panel flex w-fit flex-col gap-1 p-2">
-            {NAV.map(({ to, label, icon: Icon }) => {
-              const active = to === "/" ? path === "/" : path.startsWith(to);
-              return (
-                <li key={to}>
-                  <Link
-                    to={to}
-                    className={cn(
-                      "group flex h-11 w-11 items-center justify-center rounded-md transition-all",
-                      active
-                        ? "bg-primary/15 text-primary shadow-[0_0_18px_var(--hud)]"
-                        : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
-                    )}
-                    title={label}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </nav>
 
       {/* Bottom nav (mobile) */}
       <nav className="mobile-safe-bottom fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 md:hidden">
