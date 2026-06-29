@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import {
   Loader2,
   Send,
@@ -17,18 +17,23 @@ import {
   CalendarRange,
   X,
   Sparkles,
+  LayoutDashboard,
 } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { cn } from "@/lib/utils";
+import { StudyLanding } from "@/components/study/StudyLanding";
+import { McqRenderer } from "@/components/study/McqRenderer";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useStudyDashboard } from "@/hooks/study/useStudyDashboard";
 
 export const Route = createFileRoute("/_authenticated/study")({
   head: () => ({ meta: [{ title: "LORD — Study Command Center" }] }),
   component: StudyPage,
 });
 
-type Mode = "tutor" | "tasks" | "test";
+type Mode = "landing" | "tutor" | "tasks" | "test";
 
 type ChatMsg = { id: string; role: "user" | "assistant"; text: string };
 
@@ -178,45 +183,101 @@ async function streamChat(body: unknown, onDelta: (acc: string) => void): Promis
 }
 
 function StudyPage() {
-  const [mode, setMode] = useState<Mode>("tutor");
+  const [mode, setMode] = useState<Mode>("landing");
+  const navigate = useCallback((target: Mode) => setMode(target), []);
+
+  // Real user data
+  const { user } = useCurrentUser();
+  const dashboard = useStudyDashboard(user?.id ?? null);
+
+  const handleContinueLearning = useCallback(() => {
+    // Navigate to the right mode based on current mission type
+    const mission = dashboard.data.currentMission;
+    if (!mission) return;
+    switch (mission.type) {
+      case "created_test":
+      case "completed_test":
+      case "completed_exam":
+        navigate("test");
+        break;
+      case "completed_quiz":
+      case "created_flashcards":
+      case "generated_notes":
+        navigate("tasks");
+        break;
+      case "started_revision":
+      case "completed_revision":
+        navigate("tasks");
+        break;
+      case "deep_tutor_session":
+      case "voice_session":
+      case "asked_lord":
+        navigate("tutor");
+        break;
+      default:
+        navigate("tasks");
+    }
+  }, [dashboard.data.currentMission, navigate]);
 
   return (
     <AppShell>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
-            Study Command Center
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Tutor, generate, and rehearse — powered by LORD.
-          </p>
-        </div>
-
-        <nav className="hud-panel flex w-full gap-1 overflow-x-auto p-1 sm:w-fit">
-          {(
-            [
-              { id: "tutor", label: "Ask LORD", icon: MessageSquare },
-              { id: "tasks", label: "Tasks", icon: ClipboardList },
-              { id: "test", label: "Test Prep", icon: ClipboardCheck },
-            ] as const
-          ).map(({ id, label, icon: Icon }) => (
+      {/* Only show the mode nav bar when NOT on the landing page */}
+      {mode !== "landing" && (
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
             <button
-              key={id}
-              onClick={() => setMode(id)}
-              className={cn(
-                "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition sm:px-4",
-                mode === id
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_18px_var(--hud)]"
-                  : "text-muted-foreground hover:text-primary",
-              )}
+              onClick={() => setMode("landing")}
+              className="group flex items-center gap-2 text-left transition hover:opacity-80"
             >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+              <h1 className="font-display text-2xl tracking-wide gradient-text text-glow sm:text-3xl">
+                Study Command Center
+              </h1>
             </button>
-          ))}
-        </nav>
-      </div>
+            <p className="text-sm text-muted-foreground">
+              Tutor, generate, and rehearse — powered by LORD.
+            </p>
+          </div>
 
+          <nav className="hud-panel flex w-full gap-1 overflow-x-auto p-1 sm:w-fit">
+            <button
+              onClick={() => setMode("landing")}
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary transition sm:px-4"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Dashboard
+            </button>
+            {(
+              [
+                { id: "tutor", label: "Ask LORD", icon: MessageSquare },
+                { id: "tasks", label: "Tasks", icon: ClipboardList },
+                { id: "test", label: "Test Prep", icon: ClipboardCheck },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                className={cn(
+                  "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition sm:px-4",
+                  mode === id
+                    ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_18px_var(--hud)]"
+                    : "text-muted-foreground hover:text-primary",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      {mode === "landing" && (
+        <StudyLanding
+          data={dashboard.data}
+          onNavigate={navigate}
+          onContinueLearning={handleContinueLearning}
+        />
+      )}
       {mode === "tutor" && <TutorMode />}
       {mode === "tasks" && <TasksMode />}
       {mode === "test" && <TestPrepMode />}
@@ -498,9 +559,19 @@ function TasksMode() {
               {active.label}
             </div>
           </div>
-          <div className="min-h-[280px] whitespace-pre-wrap text-sm leading-relaxed">
-            {output || <span className="text-muted-foreground">Awaiting topic, Sir.</span>}
-          </div>
+          {output ? (
+            activeId === "quiz" ? (
+              <div className="min-h-[280px]">
+                <McqRenderer rawText={output} />
+              </div>
+            ) : (
+              <div className="min-h-[280px] whitespace-pre-wrap text-sm leading-relaxed">
+                {output}
+              </div>
+            )
+          ) : (
+            <span className="text-muted-foreground">Awaiting topic, Sir.</span>
+          )}
         </div>
       </div>
     </div>
@@ -615,8 +686,8 @@ function TestPrepMode() {
                 {activeTest.questions} Q
               </span>
             </div>
-            <div className="min-h-[420px] whitespace-pre-wrap text-sm leading-relaxed">
-              {output}
+            <div className="min-h-[420px]">
+              <McqRenderer rawText={output} />
             </div>
           </div>
         ) : tests.length > 0 && !creatorOpen ? (
