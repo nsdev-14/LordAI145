@@ -10,7 +10,6 @@ import {
   ClipboardList,
   ClipboardCheck,
   BookOpen,
-  Layers,
   ListChecks,
   FileQuestion,
   NotebookPen,
@@ -18,6 +17,7 @@ import {
   X,
   Sparkles,
   LayoutDashboard,
+  BookMarked,
 } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { getApiBaseUrl } from "@/lib/api-config";
@@ -25,6 +25,8 @@ import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { cn } from "@/lib/utils";
 import { StudyLanding } from "@/components/study/StudyLanding";
 import { McqRenderer } from "@/components/study/McqRenderer";
+import { FlashcardDeckView } from "@/components/study/FlashcardDeck";
+import { parseFlashcardsFromAI, saveDeck } from "@/components/study/flashcard-types";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useStudyDashboard } from "@/hooks/study/useStudyDashboard";
 
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/study")({
   component: StudyPage,
 });
 
-type Mode = "landing" | "tutor" | "tasks" | "test";
+type Mode = "landing" | "tutor" | "tasks" | "test" | "flashcards";
 
 type ChatMsg = { id: string; role: "user" | "assistant"; text: string };
 
@@ -47,14 +49,6 @@ const SUGGESTIONS = [
 ];
 
 const TASK_TOOLS = [
-  {
-    id: "flashcards",
-    label: "Flashcards",
-    icon: Layers,
-    desc: "10 concise Q/A cards on any topic.",
-    prompt: (t: string) =>
-      `Generate 10 concise Q/A flashcards on "${t}". Format as: Q: ...\nA: ...`,
-  },
   {
     id: "quiz",
     label: "MCQ Quiz",
@@ -186,12 +180,10 @@ function StudyPage() {
   const [mode, setMode] = useState<Mode>("landing");
   const navigate = useCallback((target: Mode) => setMode(target), []);
 
-  // Real user data
   const { user } = useCurrentUser();
   const dashboard = useStudyDashboard(user?.id ?? null);
 
   const handleContinueLearning = useCallback(() => {
-    // Navigate to the right mode based on current mission type
     const mission = dashboard.data.currentMission;
     if (!mission) return;
     switch (mission.type) {
@@ -221,7 +213,6 @@ function StudyPage() {
 
   return (
     <AppShell>
-      {/* Only show the mode nav bar when NOT on the landing page */}
       {mode !== "landing" && (
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
@@ -249,6 +240,7 @@ function StudyPage() {
             {(
               [
                 { id: "tutor", label: "Ask LORD", icon: MessageSquare },
+                { id: "flashcards", label: "Flashcards", icon: BookMarked },
                 { id: "tasks", label: "Tasks", icon: ClipboardList },
                 { id: "test", label: "Test Prep", icon: ClipboardCheck },
               ] as const
@@ -279,6 +271,7 @@ function StudyPage() {
         />
       )}
       {mode === "tutor" && <TutorMode />}
+      {mode === "flashcards" && <FlashcardsMode />}
       {mode === "tasks" && <TasksMode />}
       {mode === "test" && <TestPrepMode />}
     </AppShell>
@@ -469,7 +462,7 @@ function TutorMode() {
    TASKS MODE — launcher for existing study tools
    ============================================================ */
 function TasksMode() {
-  const [activeId, setActiveId] = useState<(typeof TASK_TOOLS)[number]["id"]>("flashcards");
+  const [activeId, setActiveId] = useState<(typeof TASK_TOOLS)[number]["id"]>("quiz");
   const [topic, setTopic] = useState("");
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -652,7 +645,6 @@ function TestPrepMode() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-      {/* Main panel */}
       <div className="hud-panel relative p-4 sm:p-5">
         <CornerBrackets />
         <div className="mb-6 flex items-center gap-3">
@@ -733,7 +725,6 @@ function TestPrepMode() {
         )}
       </div>
 
-      {/* Test Creator panel */}
       {creatorOpen ? (
         <aside className="hud-panel relative flex h-fit max-h-[78vh] flex-col overflow-hidden border-l-2 border-l-primary/50">
           <CornerBrackets />
@@ -758,7 +749,6 @@ function TestPrepMode() {
                 </div>
                 <p className="text-sm font-medium">Tell me the subject of your test</p>
               </div>
-
               <div className="flex-1 space-y-5 overflow-y-auto p-4 custom-scrollbar">
                 {SUBJECT_GROUPS.map((g) => (
                   <div key={g.group}>
@@ -791,7 +781,6 @@ function TestPrepMode() {
                   </div>
                 ))}
               </div>
-
               <div className="border-t border-border/60 p-4">
                 <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
@@ -817,7 +806,6 @@ function TestPrepMode() {
                   </div>
                   <p className="text-sm font-medium">Configure the parameters</p>
                 </div>
-
                 <div>
                   <div className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Subject
@@ -826,7 +814,6 @@ function TestPrepMode() {
                     {subject}
                   </div>
                 </div>
-
                 <div>
                   <div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Difficulty
@@ -848,7 +835,6 @@ function TestPrepMode() {
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     <span>Questions</span>
@@ -865,7 +851,6 @@ function TestPrepMode() {
                   />
                 </div>
               </div>
-
               <div className="mt-auto border-t border-border/60 p-4">
                 <div className="flex gap-2">
                   <button
@@ -893,6 +878,138 @@ function TestPrepMode() {
           )}
         </aside>
       ) : null}
+    </div>
+  );
+}
+
+/* ============================================================
+   FLASHCARDS MODE — premium study experience
+   ============================================================ */
+function FlashcardsMode() {
+  const [showGenerator, setShowGenerator] = useState(false);
+  const [genTopic, setGenTopic] = useState("");
+  const [genBusy, setGenBusy] = useState(false);
+  const { user } = useCurrentUser();
+  const dashboard = useStudyDashboard(user?.id ?? null);
+
+  const handleGenerate = useCallback(async () => {
+    const topic = genTopic.trim();
+    if (!topic || genBusy) return;
+    setGenBusy(true);
+    try {
+      const prompt = `Generate 10 concise Q/A flashcards on "${topic}".
+For each card include:
+Q: <question>
+A: <answer>
+Explanation: <brief explanation why this is correct>
+Real-world example: <practical application>
+Memory tip: <mnemonic or memory aid>
+Related concepts: <comma-separated list>
+
+Format exactly as above. Cover the most important aspects.`;
+      let output = "";
+      await streamChat(
+        {
+          mode: "reasoning",
+          messages: [
+            { id: "u", role: "user", parts: [{ type: "text", text: prompt }] },
+          ],
+        },
+        (acc) => { output = acc; },
+      );
+      const cards = parseFlashcardsFromAI(output);
+      if (cards.length === 0) {
+        const rawPairs = output.split(/\n\s*\n/).filter(Boolean);
+        for (const pair of rawPairs) {
+          const q = pair.match(/Q\d*[.)]?\s*:?\s*(.+)/i)?.[1]?.trim();
+          const a = pair.match(/A\d*[.)]?\s*:?\s*(.+)/i)?.[1]?.trim();
+          if (q && a) {
+            cards.push({
+              id: crypto.randomUUID(),
+              question: q.replace(/\*\*/g, ""),
+              answer: a.replace(/\*\*/g, ""),
+              masteryLevel: 0,
+            });
+          }
+        }
+      }
+      if (cards.length > 0) {
+        const deck = {
+          id: crypto.randomUUID(),
+          title: topic,
+          subject: topic,
+          difficulty: "medium",
+          estimatedMinutes: Math.ceil(cards.length * 1.5),
+          cards,
+          createdAt: Date.now(),
+        };
+        saveDeck(deck);
+        setShowGenerator(false);
+        setGenTopic("");
+      }
+    } catch {
+      // silent
+    } finally {
+      setGenBusy(false);
+    }
+  }, [genTopic, genBusy]);
+
+  return (
+    <div className="space-y-6">
+      {showGenerator && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowGenerator(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-[rgba(0,255,255,0.12)] bg-[rgba(6,12,24,0.95)] backdrop-blur-2xl p-6 shadow-[0_0_60px_rgba(0,255,255,0.15)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 font-display text-lg font-bold text-white/90">
+              Generate Flashcards
+            </h3>
+            <p className="mb-4 font-mono text-[10px] uppercase tracking-wider text-cyan-300/50">
+              LORD will create 10 smart cards for any topic
+            </p>
+            <input
+              value={genTopic}
+              onChange={(e) => setGenTopic(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+              placeholder="e.g. Quantum Mechanics, French Revolution..."
+              className="mb-4 w-full rounded-xl border border-[rgba(0,255,255,0.15)] bg-[rgba(0,255,255,0.04)] px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-cyan-300/30 focus:border-cyan-400/50"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowGenerator(false)}
+                className="flex-1 rounded-xl border border-[rgba(0,255,255,0.12)] py-2.5 font-mono text-xs uppercase tracking-wider text-cyan-200/60 transition hover:border-cyan-400/30"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={!genTopic.trim() || genBusy}
+                className="flex-1 rounded-xl border border-cyan-400/30 bg-cyan-500/10 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-cyan-300 shadow-[0_0_20px_rgba(0,255,255,0.12)] transition hover:bg-cyan-500/20 disabled:opacity-40"
+              >
+                {genBusy ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Generating...
+                  </span>
+                ) : (
+                  "Generate"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <FlashcardDeckView
+        onGenerate={() => setShowGenerator(true)}
+        onImport={() => setShowGenerator(true)}
+        streak={dashboard.data.studyStreak}
+      />
     </div>
   );
 }
