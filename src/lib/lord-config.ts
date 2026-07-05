@@ -1,5 +1,26 @@
 /** Client-safe LORD constants (no server-only imports). */
 
+export const LORD_MODELS = {
+  fast: "meta-llama/llama-3.3-70b-instruct:free",
+  balanced: ["openai/gpt-oss-120b:free", "qwen/qwen3-coder:free", "google/gemma-3n-e4b-it:free"],
+  reasoning: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  coding: "cohere/north-mini-code:free",
+  creative: "meta-llama/llama-3.3-70b-instruct:free",
+} as const;
+
+export type LordMode = keyof typeof LORD_MODELS;
+
+export function getLordModelCandidates(mode: LordMode): string[] {
+  const primary = LORD_MODELS[mode];
+
+  const primaryModels = Array.isArray(primary) ? primary : [primary];
+
+  const fallbackModels = Object.values(LORD_MODELS)
+    .flatMap((m) => (Array.isArray(m) ? m : [m]))
+    .filter((m) => !primaryModels.includes(m));
+
+  return [...primaryModels, ...fallbackModels];
+}
 export const LORD_SYSTEM_PROMPT = `You are LORD, the autonomous AI of this application.
 
 MISSION:
