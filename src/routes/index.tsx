@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   MessageSquare,
-  Mic,
   GraduationCap,
   Target,
   Search,
@@ -35,7 +34,6 @@ export const Route = createFileRoute("/")({
 
 const QUICK_ACTIONS = [
   { to: "/chat", label: "Chat", icon: MessageSquare, hint: "Talk to LORD" },
-  { to: "/voice", label: "Voice", icon: Mic, hint: "Hey Lord" },
   { to: "/study", label: "Study", icon: GraduationCap, hint: "Learn faster" },
   { to: "/research", label: "Research", icon: Search, hint: "Deep dive" },
   { to: "/productivity", label: "Tasks", icon: Target, hint: "Get it done" },
@@ -76,12 +74,6 @@ function Command() {
                 className="group relative inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_var(--hud)] transition hover:scale-[1.02]"
               >
                 <Zap className="h-4 w-4" /> Engage
-              </Link>
-              <Link
-                to="/voice"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
-              >
-                <Mic className="h-4 w-4" /> Voice Mode
               </Link>
             </div>
           </div>

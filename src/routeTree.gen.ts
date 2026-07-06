@@ -19,7 +19,6 @@ import { Route as AuthenticatedVoiceRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedStudyRouteImport } from './routes/_authenticated/study'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedProductivityRouteImport } from './routes/_authenticated/productivity'
 import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
@@ -74,11 +73,6 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
-  id: '/research',
-  path: '/research',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedProductivityRoute =
   AuthenticatedProductivityRouteImport.update({
     id: '/productivity',
@@ -110,7 +104,6 @@ export interface FileRoutesByFullPath {
   '/documents': typeof AuthenticatedDocumentsRoute
   '/memory': typeof AuthenticatedMemoryRoute
   '/productivity': typeof AuthenticatedProductivityRoute
-  '/research': typeof AuthenticatedResearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/study': typeof AuthenticatedStudyRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -126,7 +119,6 @@ export interface FileRoutesByTo {
   '/documents': typeof AuthenticatedDocumentsRoute
   '/memory': typeof AuthenticatedMemoryRoute
   '/productivity': typeof AuthenticatedProductivityRoute
-  '/research': typeof AuthenticatedResearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/study': typeof AuthenticatedStudyRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -144,7 +136,6 @@ export interface FileRoutesById {
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
   '/_authenticated/memory': typeof AuthenticatedMemoryRoute
   '/_authenticated/productivity': typeof AuthenticatedProductivityRoute
-  '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/study': typeof AuthenticatedStudyRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
@@ -162,7 +153,6 @@ export interface FileRouteTypes {
     | '/documents'
     | '/memory'
     | '/productivity'
-    | '/research'
     | '/settings'
     | '/study'
     | '/tasks'
@@ -178,7 +168,6 @@ export interface FileRouteTypes {
     | '/documents'
     | '/memory'
     | '/productivity'
-    | '/research'
     | '/settings'
     | '/study'
     | '/tasks'
@@ -195,7 +184,6 @@ export interface FileRouteTypes {
     | '/_authenticated/documents'
     | '/_authenticated/memory'
     | '/_authenticated/productivity'
-    | '/_authenticated/research'
     | '/_authenticated/settings'
     | '/_authenticated/study'
     | '/_authenticated/tasks'
@@ -284,13 +272,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/research': {
-      id: '/_authenticated/research'
-      path: '/research'
-      fullPath: '/research'
-      preLoaderRoute: typeof AuthenticatedResearchRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/productivity': {
       id: '/_authenticated/productivity'
       path: '/productivity'
@@ -327,7 +308,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
   AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
   AuthenticatedProductivityRoute: typeof AuthenticatedProductivityRoute
-  AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudyRoute: typeof AuthenticatedStudyRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
@@ -339,7 +319,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
   AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
   AuthenticatedProductivityRoute: AuthenticatedProductivityRoute,
-  AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudyRoute: AuthenticatedStudyRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,

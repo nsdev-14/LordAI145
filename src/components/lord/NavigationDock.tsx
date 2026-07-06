@@ -3,11 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   MessageSquare,
-  Mic,
   GraduationCap,
   Target,
   Search,
-  Brain,
   FileText,
   Settings,
   ChevronRight,
@@ -16,13 +14,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/command", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat", icon: MessageSquare },
-  { to: "/voice", label: "Voice", icon: Mic },
   { to: "/study", label: "Study", icon: GraduationCap },
   { to: "/tasks", label: "Tasks", icon: Target },
-  { to: "/research", label: "Research", icon: Search },
-  { to: "/memory", label: "Memory", icon: Brain },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;

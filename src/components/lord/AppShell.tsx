@@ -3,11 +3,9 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   MessageSquare,
-  Mic,
   GraduationCap,
   Target,
   Search,
-  Brain,
   FileText,
   Settings,
   LogOut,
@@ -29,16 +27,13 @@ import { NavigationDock } from "./NavigationDock";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat", icon: MessageSquare },
-  { to: "/voice", label: "Voice", icon: Mic },
   { to: "/study", label: "Study", icon: GraduationCap },
   { to: "/tasks", label: "Tasks", icon: Target },
-  { to: "/research", label: "Research", icon: Search },
-  { to: "/memory", label: "Memory", icon: Brain },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/voice", "/study"].includes(item.to));
+const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/study"].includes(item.to));
 const SECONDARY_NAV = NAV.filter((item) => !PRIMARY_NAV.some((primary) => primary.to === item.to));
 
 export function AppShell({ children }: { children: ReactNode }) {

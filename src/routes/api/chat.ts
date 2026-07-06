@@ -74,7 +74,7 @@ export const Route = createFileRoute("/api/chat")({
   server: {
     middleware: [requireSupabaseRequestAuth],
     handlers: {
-      POST: async ({ request }) => {
+      POST: async ({ request, context }) => {
         const requestId = crypto.randomUUID();
         logChat("api_chat_request_start", {
           requestId,
@@ -122,9 +122,39 @@ export const Route = createFileRoute("/api/chat")({
         const mode: LordMode = body.mode ?? "balanced";
         const modelCandidates = getLordModelCandidates(mode);
         const uiMessages = body.messages as unknown as UIMessage[];
-        const systemPrompt = body.context
-          ? `${LORD_SYSTEM_PROMPT}\n\nCURRENT APPLICATION CONTEXT:\n${JSON.stringify(body.context, null, 2)}`
-          : LORD_SYSTEM_PROMPT;
+        const authContext = context as { userId?: string; supabase?: { from: (table: string) => any } } | undefined;
+        let memoryPrompt = "";
+
+        if (authContext?.userId && authContext.supabase) {
+          try {
+            const { data: memories = [], error } = await authContext.supabase
+              .from("memories")
+              .select("content")
+              .eq("user_id", authContext.userId)
+              .order("created_at", { ascending: false })
+              .limit(10);
+            if (error) throw error;
+            const memoryLines = (memories as Array<{ content?: string }> | undefined)
+              ?.filter((memory) => typeof memory?.content === "string" && memory.content.trim())
+              .map((memory) => `- ${memory.content!.trim().replace(/\s+/g, " ")}`)
+              .slice(0, 8);
+            if (memoryLines && memoryLines.length > 0) {
+              memoryPrompt = `USER MEMORY:\n${memoryLines.join("\n")}\n\nUse relevant memories naturally when helpful. Ignore irrelevant memories. Do not mention stored memories unless the user asks. Do not invent memories.`;
+            }
+          } catch (err) {
+            logChat("api_chat_memory_fetch_error", {
+              requestId,
+              error: getSafeErrorMessage(err),
+            });
+          }
+        }
+
+        const appContextPrompt = body.context
+          ? `CURRENT APPLICATION CONTEXT:\n${JSON.stringify(body.context, null, 2)}`
+          : "";
+        const systemPrompt = [LORD_SYSTEM_PROMPT, memoryPrompt, appContextPrompt]
+          .filter(Boolean)
+          .join("\n\n");
 
         logChat("api_chat_request_validated", {
           requestId,

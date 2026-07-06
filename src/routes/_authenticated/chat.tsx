@@ -3,22 +3,29 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCcw, Copy, Check } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Brain,
+  Zap,
+  Sparkles,
+  Gauge,
+  LayoutPanelLeft,
+  Copy,
+  Check,
+  RefreshCcw,
+  ChevronDown,
+} from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { useAppContext } from "@/components/lord/AppContextProvider";
+import { ChatSidebar } from "@/components/lord/ChatSidebar";
+import { RichMessage } from "@/components/lord/RichMessage";
+import { TypingDots } from "@/components/lord/TypingDots";
 import { supabase } from "@/integrations/supabase/client";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { getSupabaseAuthHeaders } from "@/lib/authenticated-fetch";
 import { cn } from "@/lib/utils";
 import type { LordMode } from "@/lib/lord-config";
-import { ChatLayout } from "@/components/lord/chat/ChatLayout";
-import { ChatSidebar } from "@/components/lord/chat/ChatSidebar";
-import { EmptyState } from "@/components/lord/chat/EmptyState";
-import { MessageBubble } from "@/components/lord/chat/MessageBubble";
-import { ChatInputBar } from "@/components/lord/chat/ChatInputBar";
-import { ModelSelector } from "@/components/lord/chat/ModelSelector";
-import { TypingIndicator } from "@/components/lord/chat/TypingIndicator";
-import { RichMessage } from "@/components/lord/chat/RichMessage";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -26,6 +33,18 @@ export const Route = createFileRoute("/_authenticated/chat")({
   }),
   component: ChatPage,
 });
+
+const MODES: Array<{
+  id: LordMode;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  hint: string;
+}> = [
+  { id: "fast", label: "Fast", icon: Zap, hint: "Quick answers" },
+  { id: "balanced", label: "Balanced", icon: Gauge, hint: "Daily driver" },
+  { id: "reasoning", label: "Reason", icon: Brain, hint: "Deep thinking" },
+  { id: "creative", label: "Create", icon: Sparkles, hint: "Writing" },
+];
 
 interface ConversationRow {
   id: string;
@@ -54,7 +73,8 @@ function ChatPage() {
   const [mode, setMode] = useState<LordMode>("balanced");
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [savingMessage, setSavingMessage] = useState(false);
   const [pendingInitialSend, setPendingInitialSend] = useState<{
@@ -62,6 +82,7 @@ function ChatPage() {
     message: UIMessage;
   } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
   const activeRequestModeRef = useRef<LordMode>(mode);
   const requestBodyRef = useRef({
@@ -74,6 +95,18 @@ function ChatPage() {
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
   };
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  // Conversations list (Supabase)
   const { data: conversations = [] } = useQuery({
     queryKey: ["conversations", user.id],
     queryFn: async () => {
@@ -86,6 +119,7 @@ function ChatPage() {
     },
   });
 
+  // Messages for active conversation
   const { data: storedMessages = [], error: storedMessagesError } = useQuery({
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
@@ -217,6 +251,7 @@ function ChatPage() {
     },
   });
 
+  // Ensure a conversation exists, return its id
   const ensureConversation = async (firstMessage: string): Promise<string> => {
     if (conversationId) return conversationId;
     const title = firstMessage.slice(0, 60) || "New conversation";
@@ -278,7 +313,7 @@ function ChatPage() {
     setPendingInitialSend(null);
     setConversationId(id);
     activeConversationIdRef.current = id;
-    setMessages([]);
+    setMessages([]); // will be replaced by initialMessages once query loads
   };
 
   useEffect(() => {
@@ -286,6 +321,33 @@ function ChatPage() {
   }, [messages, status]);
 
   const busy = savingMessage || status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (!conversationId || pendingInitialSend || busy) return;
+    setMessages(initialMessages);
+  }, [busy, conversationId, initialMessages, pendingInitialSend, setMessages]);
+
+  useEffect(() => {
+    if (
+      !pendingInitialSend ||
+      conversationId !== pendingInitialSend.conversationId ||
+      status !== "ready"
+    ) {
+      return;
+    }
+
+    setMessages([pendingInitialSend.message]);
+    setPendingInitialSend(null);
+    console.info(
+      JSON.stringify({
+        event: "chat_stream_start",
+        conversationId,
+        mode: activeRequestModeRef.current,
+        messageId: pendingInitialSend.message.id,
+      }),
+    );
+    void sendMessage().finally(() => setSavingMessage(false));
+  }, [conversationId, pendingInitialSend, sendMessage, setMessages, status]);
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -449,100 +511,180 @@ function ChatPage() {
 
   return (
     <AppShell>
-      <ChatLayout
-        sidebar={
-          <div className="h-full rounded-3xl border border-border/40 bg-[rgba(30,30,30,0.7)] backdrop-blur-xl">
+      <div className="flex h-[calc(100svh-9.25rem)] min-h-0 gap-3 md:h-[calc(100vh-7rem)] md:gap-4">
+        {sidebarOpen && (
+          <div className="hidden w-72 flex-shrink-0 lg:block">
             <ChatSidebar
               currentId={conversationId}
               onSelect={loadConversation}
               onNew={startNewChat}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              onRename={(id, title) => renameMutation.mutate({ id, title })}
               conversations={conversations}
             />
           </div>
-        }
-      >
-        <div className="flex h-full flex-col">
-          <header className="flex-shrink-0 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-semibold text-white">
-                <span className="gradient-text">LORD</span>
-              </h1>
-              <ModelSelector value={mode} onChange={setMode} />
-            </div>
-          </header>
+        )}
 
-          <div ref={scrollerRef} aria-live="polite" className="flex-1 overflow-y-auto px-6">
-            {messages.length === 0 && (
-              <div className="flex h-full items-center justify-center px-6">
-                {persistenceError || storedMessagesError ? (
-                  <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 items-center gap-2 px-1 pb-2">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="hidden rounded-md border border-border/60 bg-background/40 p-2 text-muted-foreground transition hover:text-primary lg:block"
+              aria-label="Toggle sidebar"
+            >
+              <LayoutPanelLeft className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div
+            ref={scrollerRef}
+            aria-live="polite"
+            className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-6"
+          >
+            <div className="mx-auto flex w-full max-w-[860px] flex-col">
+              {messages.length === 0 ? (
+                persistenceError || storedMessagesError ? (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
                     {persistenceError ??
                       (storedMessagesError instanceof Error
                         ? storedMessagesError.message
                         : "Failed to load saved messages.")}
                   </div>
                 ) : (
-                  <EmptyState onPick={setInput} userName={user?.user_metadata?.name || user?.email?.split("@")[0]} />
-                )}
-              </div>
-            )}
-
-            {messages.length > 0 && (
-              <div className="space-y-6 py-6">
-                {messages.map((m, idx) => {
-                  const isLast = idx === messages.length - 1;
-                  const role = m.role as "user" | "assistant";
-                  const text = m.parts
-                    .filter((p) => p.type === "text")
-                    .map((p) => (p as { text: string }).text)
-                    .join("");
-                  return (
-                    <div key={m.id}>
-                      <MessageBubble role={role}>
-                        {role === "user" ? (
-                          text
-                        ) : (
-                          <>
-                            <RichMessage text={text} />
-                            <MessageActions
-                              text={text}
-                              canRegenerate={isLast && !busy}
-                              onRegenerate={regenerateLast}
-                            />
-                          </>
+                  <EmptyState onPick={(s) => setInput(s)} />
+                )
+              ) : (
+                <ul className="flex w-full flex-col gap-4">
+                  {messages.map((m, idx) => {
+                    const isLast = idx === messages.length - 1;
+                    const text = m.parts
+                      .filter((p) => p.type === "text")
+                      .map((p) => (p as { text: string }).text)
+                      .join("");
+                    return (
+                      <li
+                        key={m.id}
+                        className={cn(
+                          "flex min-w-0 gap-2 md:gap-3",
+                          m.role === "user" ? "justify-end" : "justify-start",
                         )}
-                      </MessageBubble>
-                    </div>
-                  );
-                })}
-                {error && (
-                  <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                    {error.message || "The AI request failed. Please retry."}
+                      >
+                        {m.role === "assistant" && <Avatar />}
+                        <div className={cn("min-w-0", m.role === "user" ? "max-w-[90%] md:max-w-[78%]" : "max-w-[100%] md:max-w-[90%]")}>
+                          {m.role === "user" ? (
+                            <div className="rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground whitespace-pre-wrap md:px-4">
+                              {text}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-foreground">
+                              <RichMessage text={text} />
+                              <MessageActions
+                                text={text}
+                                canRegenerate={isLast && !busy}
+                                onRegenerate={regenerateLast}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                  {busy && (
+                    <li className="flex items-center gap-3">
+                      <Avatar />
+                      <TypingDots />
+                    </li>
+                  )}
+                  {error && (
+                    <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                      {error.message || "The AI request failed. Please retry."}
+                    </li>
+                  )}
+                  {(persistenceError || storedMessagesError) && (
+                    <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                      {persistenceError ??
+                        (storedMessagesError instanceof Error
+                          ? storedMessagesError.message
+                          : "Failed to load saved messages.")}
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={submit} className="shrink-0 border-t border-border/40 bg-background/70 px-3 py-3 backdrop-blur md:px-4">
+            <div className="mx-auto flex w-full max-w-[860px] flex-col gap-2">
+              <div ref={modelMenuRef} className="relative self-start">
+                <button
+                  type="button"
+                  onClick={() => setModelMenuOpen((open) => !open)}
+                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm transition hover:text-primary"
+                >
+                  <span className="text-[12px]">
+                    {(() => {
+                      const selected = MODES.find((m) => m.id === mode);
+                      const Icon = selected?.icon ?? Gauge;
+                      return <Icon className="h-3.5 w-3.5" />;
+                    })()}
+                  </span>
+                  <span className="capitalize">{MODES.find((m) => m.id === mode)?.label ?? "Balanced"}</span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {modelMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-44 rounded-2xl border border-border/50 bg-background/95 p-1 shadow-2xl backdrop-blur">
+                    {MODES.map((m) => {
+                      const Icon = m.icon;
+                      const active = mode === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setMode(m.id);
+                            setModelMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                            active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span>{m.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            )}
 
-            {busy && (
-              <div className="flex items-center gap-3 px-6 pb-4">
-                <AssistantAvatar />
-                <TypingIndicator />
+              <div className="flex items-end gap-2 rounded-[28px] border border-border/50 bg-background/80 px-3 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      submit();
+                    }
+                  }}
+                  placeholder="Ask anything"
+                  rows={1}
+                  className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-1 py-1 text-base outline-none placeholder:text-muted-foreground/60 md:max-h-40 md:text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Send"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </button>
               </div>
-            )}
-          </div>
-
-          <footer className="flex-shrink-0 px-6 py-4">
-            <ChatInputBar
-              value={input}
-              onChange={setInput}
-              onSubmit={submit}
-              busy={busy}
-              onAttachClick={() => setToolMenuOpen(true)}
-              placeholder="Ask LORD anything..."
-            />
-          </footer>
+            </div>
+          </form>
         </div>
-      </ChatLayout>
+      </div>
     </AppShell>
   );
 }
@@ -563,18 +705,18 @@ function MessageActions({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Copy failed silently
+      /* ignore */
     }
   };
   return (
-    <div className="mt-3 flex items-center gap-2">
+    <div className="mt-2 flex items-center gap-1">
       <button
         onClick={copy}
         className={cn(
-          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs transition",
+          "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition",
           copied
             ? "text-[var(--hud-success)]"
-            : "text-muted-foreground hover:bg-white/5 hover:text-primary",
+            : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
         )}
         aria-label="Copy message"
       >
@@ -584,7 +726,7 @@ function MessageActions({
       {canRegenerate && (
         <button
           onClick={onRegenerate}
-          className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs text-muted-foreground transition hover:bg-white/5 hover:text-primary"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
           aria-label="Regenerate response"
         >
           <RefreshCcw className="h-3 w-3" />
@@ -595,13 +737,41 @@ function MessageActions({
   );
 }
 
-function AssistantAvatar() {
+function Avatar() {
   return (
     <div
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
       style={{ background: "var(--gradient-hud)", boxShadow: "0 0 12px var(--hud)" }}
     >
-      <span className="font-sans text-[10px] font-bold text-background">L</span>
+      <span className="font-display text-[10px] font-bold text-background">L</span>
+    </div>
+  );
+}
+
+function EmptyState({ onPick }: { onPick: (s: string) => void }) {
+  const suggestions = [
+    "Summarize the key ideas in Sapiens.",
+    "Plan a 7-day deep work schedule.",
+    "Explain async/await in TypeScript with a code example.",
+    "Give me a research brief on quantum computing.",
+  ];
+  return (
+    <div className="flex h-full flex-col items-center justify-center text-center">
+      <div className="mb-4 font-display text-lg gradient-text text-glow">Standing by.</div>
+      <p className="mb-6 max-w-md text-sm text-muted-foreground">
+        Issue a directive and I shall respond. Switch models from the selector below to bias the active model.
+      </p>
+      <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
+        {suggestions.map((s) => (
+          <button
+            key={s}
+            onClick={() => onPick(s)}
+            className="rounded-md border border-border/60 bg-background/40 p-3 text-left text-xs text-muted-foreground transition hover:border-primary/60 hover:text-primary"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
