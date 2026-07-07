@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/command", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/study", label: "Study", icon: GraduationCap },
   { to: "/tasks", label: "Tasks", icon: Target },

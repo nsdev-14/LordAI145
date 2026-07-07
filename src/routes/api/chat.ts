@@ -122,7 +122,9 @@ export const Route = createFileRoute("/api/chat")({
         const mode: LordMode = body.mode ?? "balanced";
         const modelCandidates = getLordModelCandidates(mode);
         const uiMessages = body.messages as unknown as UIMessage[];
-        const authContext = context as { userId?: string; supabase?: { from: (table: string) => any } } | undefined;
+        const authContext = context as
+          | { userId?: string; supabase?: { from: (table: string) => unknown } }
+          | undefined;
         let memoryPrompt = "";
 
         if (authContext?.userId && authContext.supabase) {

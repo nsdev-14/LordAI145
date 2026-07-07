@@ -570,7 +570,14 @@ function ChatPage() {
                         )}
                       >
                         {m.role === "assistant" && <Avatar />}
-                        <div className={cn("min-w-0", m.role === "user" ? "max-w-[90%] md:max-w-[78%]" : "max-w-[100%] md:max-w-[90%]")}>
+                        <div
+                          className={cn(
+                            "min-w-0",
+                            m.role === "user"
+                              ? "max-w-[90%] md:max-w-[78%]"
+                              : "max-w-[100%] md:max-w-[90%]",
+                          )}
+                        >
                           {m.role === "user" ? (
                             <div className="rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground whitespace-pre-wrap md:px-4">
                               {text}
@@ -613,7 +620,10 @@ function ChatPage() {
             </div>
           </div>
 
-          <form onSubmit={submit} className="shrink-0 border-t border-border/40 bg-background/70 px-3 py-3 backdrop-blur md:px-4">
+          <form
+            onSubmit={submit}
+            className="shrink-0 border-t border-border/40 bg-background/70 px-3 py-3 backdrop-blur md:px-4"
+          >
             <div className="mx-auto flex w-full max-w-[860px] flex-col gap-2">
               <div ref={modelMenuRef} className="relative self-start">
                 <button
@@ -628,7 +638,9 @@ function ChatPage() {
                       return <Icon className="h-3.5 w-3.5" />;
                     })()}
                   </span>
-                  <span className="capitalize">{MODES.find((m) => m.id === mode)?.label ?? "Balanced"}</span>
+                  <span className="capitalize">
+                    {MODES.find((m) => m.id === mode)?.label ?? "Balanced"}
+                  </span>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {modelMenuOpen && (
@@ -646,7 +658,9 @@ function ChatPage() {
                           }}
                           className={cn(
                             "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
-                            active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                            active
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
                           )}
                         >
                           <Icon className="h-3.5 w-3.5" />
@@ -678,7 +692,11 @@ function ChatPage() {
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="Send"
                 >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -759,7 +777,8 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="mb-4 font-display text-lg gradient-text text-glow">Standing by.</div>
       <p className="mb-6 max-w-md text-sm text-muted-foreground">
-        Issue a directive and I shall respond. Switch models from the selector below to bias the active model.
+        Issue a directive and I shall respond. Switch models from the selector below to bias the
+        active model.
       </p>
       <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
         {suggestions.map((s) => (
