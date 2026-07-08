@@ -3,29 +3,22 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Send,
-  Loader2,
-  Brain,
-  Zap,
-  Sparkles,
-  Gauge,
-  LayoutPanelLeft,
-  Copy,
-  Check,
-  RefreshCcw,
-  ChevronDown,
-} from "lucide-react";
+import { LayoutPanelLeft, Copy, Check, RefreshCcw } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { useAppContext } from "@/components/lord/AppContextProvider";
 import { ChatSidebar } from "@/components/lord/ChatSidebar";
 import { RichMessage } from "@/components/lord/RichMessage";
 import { TypingDots } from "@/components/lord/TypingDots";
+import { ChatInput } from "@/components/lord/chat/input/ChatInput";
+import type { ChatSubmitPayload } from "@/components/lord/chat/input/types";
+import { getToolDef } from "@/components/lord/chat/input/tools";
+import { DEFAULT_MODEL_ID } from "@/components/lord/chat/input/models";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { tokenUsageStore, type TokenUsageEvent } from "@/lib/token-usage-store";
 import { supabase } from "@/integrations/supabase/client";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { getSupabaseAuthHeaders } from "@/lib/authenticated-fetch";
 import { cn } from "@/lib/utils";
-import type { LordMode } from "@/lib/lord-config";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -33,18 +26,6 @@ export const Route = createFileRoute("/_authenticated/chat")({
   }),
   component: ChatPage,
 });
-
-const MODES: Array<{
-  id: LordMode;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  hint: string;
-}> = [
-  { id: "fast", label: "Fast", icon: Zap, hint: "Quick answers" },
-  { id: "balanced", label: "Balanced", icon: Gauge, hint: "Daily driver" },
-  { id: "reasoning", label: "Reason", icon: Brain, hint: "Deep thinking" },
-  { id: "creative", label: "Create", icon: Sparkles, hint: "Writing" },
-];
 
 interface ConversationRow {
   id: string;
@@ -70,11 +51,10 @@ function ChatPage() {
   const { user } = Route.useRouteContext();
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
 
-  const [mode, setMode] = useState<LordMode>("balanced");
+  const [modelId, setModelId] = usePersistedState<string>("chat-model", DEFAULT_MODEL_ID);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [savingMessage, setSavingMessage] = useState(false);
   const [pendingInitialSend, setPendingInitialSend] = useState<{
@@ -82,29 +62,18 @@ function ChatPage() {
     message: UIMessage;
   } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const modelMenuRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
-  const activeRequestModeRef = useRef<LordMode>(mode);
+  const modelIdRef = useRef<string>(modelId);
+  modelIdRef.current = modelId;
   const requestBodyRef = useRef({
-    mode,
+    modelId,
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
   });
 
   requestBodyRef.current = {
-    mode,
+    modelId,
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
   };
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
-        setModelMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
 
   // Conversations list (Supabase)
   const { data: conversations = [] } = useQuery({
@@ -156,19 +125,23 @@ function ChatPage() {
     [],
   );
 
-  const { messages, setMessages, sendMessage, status, error, regenerate } = useChat({
+  const { messages, setMessages, sendMessage, status, error, regenerate, stop } = useChat({
     id: conversationId ?? "draft",
     messages: initialMessages,
     transport,
-    onFinish: async ({ messages: completed, isError }) => {
+    onFinish: async ({ message, messages: completed, isError }) => {
+      const meta = (message?.metadata ?? null) as { tokenUsage?: TokenUsageEvent } | null;
+      if (meta?.tokenUsage) {
+        tokenUsageStore.record(meta.tokenUsage);
+      }
       const activeConversationId = activeConversationIdRef.current;
-      const requestMode = activeRequestModeRef.current;
+      const requestModel = modelIdRef.current;
       if (isError || !activeConversationId) {
         console.warn(
           JSON.stringify({
             event: "chat_stream_finish_skipped",
             conversationId: activeConversationId,
-            mode: requestMode,
+            modelId: requestModel,
             isError,
           }),
         );
@@ -194,7 +167,7 @@ function ChatPage() {
             role: "assistant",
             conversationId: activeConversationId,
             messageId: assistantMessageId,
-            mode: requestMode,
+            modelId: requestModel,
           }),
         );
         const { error: insertError } = await supabase.from("messages").insert({
@@ -203,7 +176,7 @@ function ChatPage() {
           user_id: user.id,
           role: "assistant",
           content,
-          model: requestMode,
+          model: requestModel,
         });
         if (insertError) {
           console.error(
@@ -213,7 +186,7 @@ function ChatPage() {
               role: "assistant",
               conversationId: activeConversationId,
               messageId: assistantMessageId,
-              mode: requestMode,
+              modelId: requestModel,
               error: insertError.message,
             }),
           );
@@ -226,7 +199,7 @@ function ChatPage() {
               role: "assistant",
               conversationId: activeConversationId,
               messageId: assistantMessageId,
-              mode: requestMode,
+              modelId: requestModel,
             }),
           );
         }
@@ -266,7 +239,7 @@ function ChatPage() {
         event: "supabase_insert_success",
         table: "conversations",
         conversationId: data.id,
-        mode,
+        modelId,
       }),
     );
     setConversationId(data.id);
@@ -342,29 +315,55 @@ function ChatPage() {
       JSON.stringify({
         event: "chat_stream_start",
         conversationId,
-        mode: activeRequestModeRef.current,
+        modelId: modelIdRef.current,
         messageId: pendingInitialSend.message.id,
       }),
     );
     void sendMessage().finally(() => setSavingMessage(false));
   }, [conversationId, pendingInitialSend, sendMessage, setMessages, status]);
 
-  const submit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const text = input.trim();
-    if (!text || busy) return;
+  const buildMessageText = async (payload: ChatSubmitPayload): Promise<string> => {
+    let text = payload.text;
+    if (payload.tool) {
+      const tool = getToolDef(payload.tool);
+      if (tool) text = `[${tool.label}] ${text}`;
+    }
+    const notes: string[] = [];
+    const blocks: string[] = [];
+    for (const att of payload.attachments) {
+      notes.push(`- ${att.name} (${att.kind}, ${(att.size / 1024).toFixed(0)} KB)`);
+      const isTextLike =
+        att.kind === "file" &&
+        (att.file.type.startsWith("text/") ||
+          /\.(txt|md|markdown|json|csv|ts|tsx|js|jsx|py|css|html|log|yml|yaml)$/i.test(att.name));
+      if (isTextLike && att.size <= 32 * 1024) {
+        try {
+          const content = await att.file.text();
+          blocks.push(`\n\n--- ${att.name} ---\n${content.slice(0, 8000)}`);
+        } catch {
+          /* ignore unreadable files */
+        }
+      }
+    }
+    if (notes.length) text += `\n\nAttached files:\n${notes.join("\n")}`;
+    if (blocks.length) text += blocks.join("");
+    return text;
+  };
+
+  const submit = async (payload: ChatSubmitPayload) => {
+    const text = await buildMessageText(payload);
+    if (!text.trim() || busy) return;
     setPersistenceError(null);
     const isNewConversation = !conversationId;
     setSavingMessage(true);
     try {
       const convId = await ensureConversation(text);
       activeConversationIdRef.current = convId;
-      activeRequestModeRef.current = mode;
       console.info(
         JSON.stringify({
           event: "chat_submit",
           conversationId: convId,
-          mode,
+          modelId,
           isNewConversation,
         }),
       );
@@ -381,7 +380,7 @@ function ChatPage() {
           role: "user",
           conversationId: convId,
           messageId: userMsgId,
-          mode,
+          modelId,
         }),
       );
       const { error: insertError } = await supabase.from("messages").insert({
@@ -390,6 +389,7 @@ function ChatPage() {
         user_id: user.id,
         role: "user",
         content: text,
+        model: modelId,
       });
       if (insertError) {
         console.error(
@@ -399,7 +399,7 @@ function ChatPage() {
             role: "user",
             conversationId: convId,
             messageId: userMsgId,
-            mode,
+            modelId,
             error: insertError.message,
           }),
         );
@@ -412,7 +412,7 @@ function ChatPage() {
           role: "user",
           conversationId: convId,
           messageId: userMsgId,
-          mode,
+          modelId,
         }),
       );
       const { error: touchError } = await supabase
@@ -431,7 +431,6 @@ function ChatPage() {
         throw touchError;
       }
       qc.invalidateQueries({ queryKey: ["conversations", user.id] });
-      setInput("");
       if (isNewConversation) {
         setPendingInitialSend({ conversationId: convId, message: userMessage });
       } else {
@@ -439,7 +438,7 @@ function ChatPage() {
           JSON.stringify({
             event: "chat_stream_start",
             conversationId: convId,
-            mode,
+            modelId,
             messageId: userMsgId,
           }),
         );
@@ -467,7 +466,6 @@ function ChatPage() {
     try {
       setPersistenceError(null);
       setSavingMessage(true);
-      activeRequestModeRef.current = mode;
       if (activeConversationId && lastAssistant) {
         const { error: deleteError } = await supabase
           .from("messages")
@@ -482,7 +480,7 @@ function ChatPage() {
             role: "assistant",
             conversationId: activeConversationId,
             messageId: lastAssistant.id,
-            mode,
+            modelId,
           }),
         );
       }
@@ -490,7 +488,7 @@ function ChatPage() {
         JSON.stringify({
           event: "chat_stream_start",
           conversationId: activeConversationId,
-          mode,
+          modelId,
           trigger: "regenerate",
         }),
       );
@@ -508,6 +506,8 @@ function ChatPage() {
       setSavingMessage(false);
     }
   };
+
+  const streaming = status === "streaming" || status === "submitted";
 
   return (
     <AppShell>
@@ -579,7 +579,7 @@ function ChatPage() {
                           )}
                         >
                           {m.role === "user" ? (
-                            <div className="rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground whitespace-pre-wrap md:px-4">
+                            <div className="whitespace-pre-wrap rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground md:px-4">
                               {text}
                             </div>
                           ) : (
@@ -620,87 +620,20 @@ function ChatPage() {
             </div>
           </div>
 
-          <form
-            onSubmit={submit}
-            className="shrink-0 border-t border-border/40 bg-background/70 px-3 py-3 backdrop-blur md:px-4"
-          >
-            <div className="mx-auto flex w-full max-w-[860px] flex-col gap-2">
-              <div ref={modelMenuRef} className="relative self-start">
-                <button
-                  type="button"
-                  onClick={() => setModelMenuOpen((open) => !open)}
-                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm transition hover:text-primary"
-                >
-                  <span className="text-[12px]">
-                    {(() => {
-                      const selected = MODES.find((m) => m.id === mode);
-                      const Icon = selected?.icon ?? Gauge;
-                      return <Icon className="h-3.5 w-3.5" />;
-                    })()}
-                  </span>
-                  <span className="capitalize">
-                    {MODES.find((m) => m.id === mode)?.label ?? "Balanced"}
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-                {modelMenuOpen && (
-                  <div className="absolute bottom-full left-0 mb-2 w-44 rounded-2xl border border-border/50 bg-background/95 p-1 shadow-2xl backdrop-blur">
-                    {MODES.map((m) => {
-                      const Icon = m.icon;
-                      const active = mode === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => {
-                            setMode(m.id);
-                            setModelMenuOpen(false);
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
-                            active
-                              ? "bg-primary/10 text-primary"
-                              : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
-                          )}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span>{m.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-end gap-2 rounded-[28px] border border-border/50 bg-background/80 px-3 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  placeholder="Ask anything"
-                  rows={1}
-                  className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-1 py-1 text-base outline-none placeholder:text-muted-foreground/60 md:max-h-40 md:text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !input.trim()}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_18px_var(--hud)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Send"
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
+          <div className="shrink-0 px-3 py-3 md:px-4">
+            <div className="mx-auto w-full max-w-[860px]">
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={submit}
+                onStop={stop}
+                streaming={streaming}
+                disabled={savingMessage}
+                modelId={modelId}
+                onModelIdChange={setModelId}
+              />
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </AppShell>
@@ -777,8 +710,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="mb-4 font-display text-lg gradient-text text-glow">Standing by.</div>
       <p className="mb-6 max-w-md text-sm text-muted-foreground">
-        Issue a directive and I shall respond. Switch models from the selector below to bias the
-        active model.
+        Issue a directive and I shall respond. Pick a model above to bias the active model.
       </p>
       <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
         {suggestions.map((s) => (

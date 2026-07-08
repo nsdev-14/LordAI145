@@ -6,8 +6,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { LucideIcon } from "lucide-react";
 
 import { AppShell } from "@/components/lord/AppShell";
+import { TokenUsagePanel } from "@/components/lord/TokenUsagePanel";
 import { getUserSettings, updateUserSettings } from "@/lib/user-settings.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { useTokenUsage } from "@/lib/token-usage-store";
+import { getModelDef } from "@/components/lord/chat/input/models";
 import { cn } from "@/lib/utils";
 import {
   Loader2,
@@ -206,6 +209,8 @@ function SettingsPage() {
     queryFn: () => fetchSettings(),
   });
   const { user } = Route.useRouteContext();
+
+  const { latest: latestUsage } = useTokenUsage();
 
   const [defaultMode, setDefaultMode] = useState("balanced");
   const [voiceRate, setVoiceRate] = useState(1);
@@ -947,6 +952,22 @@ function SettingsPage() {
                     : "—"}
                 </span>
               </div>
+            </CollapsibleCard>
+
+            {/* Token Usage */}
+            <CollapsibleCard
+              storageKey="lord.settings.token-usage"
+              defaultOpen={false}
+              icon={Activity}
+              title="Token Usage"
+              subtitle="Monitor AI token consumption"
+              summary={
+                latestUsage
+                  ? `Total ${latestUsage.totalTokens} • $${latestUsage.cost.toFixed(4)} • ${getModelDef(latestUsage.model)?.label ?? latestUsage.model}`
+                  : "Live token metrics"
+              }
+            >
+              <TokenUsagePanel />
             </CollapsibleCard>
 
             {/* Privacy & Data */}

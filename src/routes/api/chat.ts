@@ -8,6 +8,9 @@ import {
   getLordModelCandidates,
   type LordMode,
 } from "@/lib/ai-gateway.server";
+import { MODEL_REGISTRY } from "@/lib/model-registry";
+import { estimateCost } from "@/lib/model-cost";
+import type { TokenUsageEvent } from "@/lib/token-usage-store";
 import { apiErrorResponse, getSafeErrorMessage } from "@/lib/api-error";
 import { requireSupabaseRequestAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -24,6 +27,7 @@ const ChatRequestSchema = z.object({
     .min(1)
     .max(100),
   mode: z.enum(["fast", "balanced", "reasoning", "coding", "creative"]).optional(),
+  modelId: z.string().min(1).optional(),
   context: z
     .object({
       page: z.string().max(200).optional(),
@@ -50,6 +54,14 @@ function getModelUnavailableError(message: string) {
       normalized.includes("unavailable") ||
       normalized.includes("does not exist"))
   );
+}
+
+function resolveModelId(modelId: string | undefined, mode: LordMode): string {
+  if (modelId) {
+    if (MODEL_REGISTRY.some((m) => m.id === modelId)) return modelId;
+    if (modelId === "local") return "meta-llama/llama-3.3-70b-instruct:free";
+  }
+  return getLordModelCandidates(mode)[0];
 }
 
 function logChat(event: string, payload: Record<string, unknown>) {
@@ -120,7 +132,11 @@ export const Route = createFileRoute("/api/chat")({
 
         const body = parsed.data;
         const mode: LordMode = body.mode ?? "balanced";
-        const modelCandidates = getLordModelCandidates(mode);
+        const modelId = body.modelId;
+        const primaryModel = resolveModelId(modelId, mode);
+        const modelCandidates = Array.from(
+          new Set([primaryModel, ...getLordModelCandidates(mode)]),
+        );
         const uiMessages = body.messages as unknown as UIMessage[];
         const authContext = context as
           | { userId?: string; supabase?: { from: (table: string) => unknown } }
@@ -203,12 +219,24 @@ export const Route = createFileRoute("/api/chat")({
                 });
               },
               onFinish: ({ finishReason, usage }) => {
+                const cost = estimateCost(
+                  candidateModel,
+                  usage.inputTokens ?? 0,
+                  usage.outputTokens ?? 0,
+                );
                 logChat("openrouter_stream_end", {
                   requestId,
                   mode,
                   model: candidateModel,
                   finishReason,
-                  usage,
+                  usage: {
+                    inputTokens: usage.inputTokens ?? 0,
+                    outputTokens: usage.outputTokens ?? 0,
+                    totalTokens: usage.totalTokens ?? 0,
+                    reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
+                    cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+                    cost,
+                  },
                 });
               },
             });
@@ -217,6 +245,28 @@ export const Route = createFileRoute("/api/chat")({
                 "Cache-Control": "no-store",
                 "X-LordAI-Request-Id": requestId,
                 "X-LordAI-Model": candidateModel,
+              },
+              messageMetadata: ({ part }) => {
+                if (part.type !== "finish") return undefined;
+                const usage = part.totalUsage;
+                const event: TokenUsageEvent = {
+                  requestId,
+                  model: candidateModel,
+                  mode,
+                  finishReason: part.finishReason,
+                  inputTokens: usage.inputTokens ?? 0,
+                  outputTokens: usage.outputTokens ?? 0,
+                  reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
+                  cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+                  totalTokens: usage.totalTokens ?? 0,
+                  cost: estimateCost(
+                    candidateModel,
+                    usage.inputTokens ?? 0,
+                    usage.outputTokens ?? 0,
+                  ),
+                  timestamp: Date.now(),
+                };
+                return { tokenUsage: event };
               },
             });
           } catch (err) {
