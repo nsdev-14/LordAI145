@@ -4,5 +4,4 @@ export default defineConfig({
   vite: {
     base: "/",
   },
-  nitro: false,
 });
