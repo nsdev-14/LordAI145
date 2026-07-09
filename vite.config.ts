@@ -5,7 +5,4 @@ export default defineConfig({
     base: "/",
   },
   nitro: false,
-  tanstackStart: {
-    spa: false,
-  },
 });
