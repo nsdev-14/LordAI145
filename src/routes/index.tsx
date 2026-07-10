@@ -35,7 +35,7 @@ export const Route = createFileRoute("/")({
 const QUICK_ACTIONS = [
   { to: "/chat", label: "Chat", icon: MessageSquare, hint: "Talk to LORD" },
   { to: "/study", label: "Study", icon: GraduationCap, hint: "Learn faster" },
-  { to: "/research", label: "Research", icon: Search, hint: "Deep dive" },
+  { to: "/documents", label: "Research", icon: Search, hint: "Deep dive" },
   { to: "/productivity", label: "Tasks", icon: Target, hint: "Get it done" },
   { to: "/memory", label: "Memory", icon: Brain, hint: "Recall" },
 ] as const;

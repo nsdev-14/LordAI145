@@ -33,6 +33,7 @@ dist-ssr
 .env
 .env.local
 .env.*
+!.env.example
 .vercel
 
 # Supabase CLI temporary files

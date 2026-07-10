@@ -13,6 +13,8 @@ import { estimateCost } from "@/lib/model-cost";
 import type { TokenUsageEvent } from "@/lib/token-usage-store";
 import { apiErrorResponse, getSafeErrorMessage } from "@/lib/api-error";
 import { requireSupabaseRequestAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const ChatRequestSchema = z.object({
   messages: z
@@ -139,7 +141,7 @@ export const Route = createFileRoute("/api/chat")({
         );
         const uiMessages = body.messages as unknown as UIMessage[];
         const authContext = context as
-          | { userId?: string; supabase?: { from: (table: string) => unknown } }
+          | { userId?: string; supabase?: SupabaseClient<Database> }
           | undefined;
         let memoryPrompt = "";
 

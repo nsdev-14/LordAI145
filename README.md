@@ -290,6 +290,53 @@ npm run dev
 
 ---
 
+# 🔐 Environment Setup
+
+Copy the example environment file and fill in your values. **Never commit `.env`** — it is git-ignored.
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Where | Purpose |
+| --- | --- | --- | --- |
+| `VITE_SUPABASE_URL` | ✅ | Client | Supabase project URL (public) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Client | Supabase anon/publishable key (public) |
+| `SUPABASE_URL` | ✅ | Server | Supabase project URL (server) |
+| `SUPABASE_PUBLISHABLE_KEY` | ✅ | Server | Supabase anon/publishable key (server) |
+| `OPENROUTER_API_KEY` | ✅ | Server | OpenRouter API key for AI (secret) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ⬜ | Server | Admin client (bypasses RLS) |
+| `SUPABASE_PROJECT_ID` | ⬜ | Both | Supabase CLI / tooling |
+| `OPENROUTER_REFERER` / `OPENROUTER_TITLE` | ⬜ | Server | OpenRouter attribution headers |
+
+> Only `VITE_`-prefixed variables reach the browser. Keep `OPENROUTER_API_KEY` and
+> service-role keys server-side only.
+
+---
+
+# 🚀 Deploy to Vercel
+
+LORD AI is a [TanStack Start](https://tanstack.com/start) app. The build uses the Nitro
+`vercel` preset, which emits a Vercel **Build Output API** (`.vercel/output`) with a
+Node.js serverless function (SSR + `/api/chat`) and static assets.
+
+1. Push this repository to GitHub and import it in Vercel.
+2. Vercel auto-detects the build (`npm run build`). No framework override is needed
+   (`vercel.json` disables framework auto-detection so the Nitro output is used).
+3. Add the environment variables above in **Project → Settings → Environment Variables**.
+   At minimum set the four Supabase vars and `OPENROUTER_API_KEY`.
+4. Deploy. The Node function runs on the same runtime the build targets
+   (see `.nvmrc`).
+
+Local production preview:
+
+```bash
+npm run build
+npm run preview
+```
+
+---
+
 # 🛡 Philosophy
 
 LORD is built around a simple idea:
