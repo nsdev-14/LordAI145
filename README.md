@@ -34,6 +34,7 @@ Built with a cyberpunk-inspired HUD interface, LORD combines:
 - 🎙️ Voice Command Infrastructure
 - 🧠 Long-Term Memory Systems
 - 📊 Real-Time System Monitoring
+- 🧠 Study tutor 
 - ⚡ Multi-Mode Intelligence Engine
 - 🎯 Workflow Assistance
 - 🔍 Research & Knowledge Operations
