@@ -34,3 +34,6 @@ dist-ssr
 .env.local
 .env.*
 .vercel
+
+# Supabase CLI temporary files
+supabase/.temp/
