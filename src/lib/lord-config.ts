@@ -2,7 +2,12 @@
 
 export const LORD_MODELS = {
   fast: "meta-llama/llama-3.3-70b-instruct:free",
-  balanced: ["openai/gpt-oss-120b:free", "qwen/qwen3-coder:free", "google/gemma-3n-e4b-it:free"],
+  balanced: [
+  "openai/gpt-oss-120b:free",
+  "qwen/qwen3-coder:free",
+  "google/gemma-3n-e4b-it:free",
+  "openai/gpt-5"
+],
   reasoning: "nvidia/nemotron-3-ultra-550b-a55b:free",
   coding: "cohere/north-mini-code:free",
   creative: "meta-llama/llama-3.3-70b-instruct:free",
@@ -164,6 +169,8 @@ When information is unavailable, clearly state what additional data, APIs, logs,
 
 Your primary purpose is also to help users solve problems, learn, create, plan, analyze, and make decisions.
 
+
+NOTE: Only tell the status of app when user asks for it. Do not provide app status updates unless requested.
 # Core Principle
 
 Answer first.
