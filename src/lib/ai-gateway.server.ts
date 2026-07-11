@@ -24,7 +24,7 @@ const OPENROUTER_TIMEOUT_MS = 45_000;
 // unavailable models, timeouts, network errors) surface here, letting the
 // backend transparently try the next candidate. Only after a candidate passes
 // the probe do we open the real stream to the user.
-const PROBE_MAX_OUTPUT_TOKENS = 1;
+const PROBE_MAX_OUTPUT_TOKENS = 32;
 const PROBE_TIMEOUT_MS = 20_000;
 const REASON_LABELS: Record<string, string> = {
   invalid_api_key: "Invalid API key",
@@ -375,15 +375,19 @@ export async function findFirstWorkingModel(
     console.info(`Attempt ${attemptNum}:\n${modelId}`);
 
     try {
-      await generateText({
-        model: opts.gateway(modelId),
-        system: opts.system,
-        messages: opts.messages,
-        maxOutputTokens: PROBE_MAX_OUTPUT_TOKENS,
-        temperature: 0,
-        timeout: PROBE_TIMEOUT_MS,
-        maxRetries: 0,
-      });
+await generateText({
+    model: opts.gateway(modelId),
+    system: "Reply with OK",
+    messages: [
+        {
+            role: "user",
+            content: "OK"
+        }
+    ],
+    maxOutputTokens: PROBE_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    maxRetries: 0,
+});
     } catch (err) {
       const classification = classifyModelError(err);
       const attempt: ModelAttempt = {
@@ -400,24 +404,12 @@ export async function findFirstWorkingModel(
       console.info(
         `Failed:\n${attempt.reason} (status: ${attempt.status}, retryable: ${attempt.retryable})`,
       );
-      if (!classification.retryable) {
-        console.error(
-          JSON.stringify({
-            event: "lord_mode_non_retryable",
-            requestId,
-            mode,
-            model: modelId,
-            reason: classification.reason,
-            status: classification.status,
-            providerMessage: classification.providerMessage,
-            errorCode: classification.errorCode,
-            providerRequestId: classification.requestId,
-          }),
-        );
-        const error = new Error(`Model ${modelId} failed: ${attempt.reason}`);
-        (error as unknown as { lordAttempts: ModelAttempt[] }).lordAttempts = attempts;
-        throw error;
-      }
+if (!classification.retryable) {
+  console.warn(
+    `Skipping invalid model ${modelId}: ${classification.providerMessage}`
+  );
+  continue;
+}
       continue;
     }
 
@@ -565,7 +557,7 @@ export async function testOpenRouterConnection(opts: {
     model,
     stream: false,
     messages: [{ role: "user", content: opts.prompt ?? "Say hello." }],
-    max_tokens: 32,
+    max_tokens:512,
     temperature: 0,
   };
   const diagnostics = getOpenRouterEnvironmentDiagnostics();
