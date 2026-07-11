@@ -4,42 +4,43 @@
 // Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
   fast: [
+    "google/gemma-3n-e4b-it:free",
+    "google/gemma-4-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-4-26b-a4b-it:free",
   ],
 
   balanced: [
-    "openai/gpt-4o-mini",
-    "openai/gpt-4o",
-    "deepseek/deepseek-chat",
-    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-27b-it:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
+    "qwen/qwen3-32b:free",
   ],
 
   reasoning: [
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-4o",
-    "deepseek/deepseek-chat",
+    "qwen/qwen3-32b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-27b-it:free",
   ],
 
   coding: [
-    "qwen/qwen-2.5-coder-32b-instruct",
-    "deepseek/deepseek-chat",
-    "openai/gpt-4o",
+    "qwen/qwen-2.5-coder-32b-instruct:free",
+    "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
   ],
 
   creative: [
-    "openai/gpt-4o",
-    "anthropic/claude-sonnet-4",
-    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-27b-it:free",
+    "qwen/qwen3-32b:free",
   ],
 
-  // On-device / local-class model used when the user picks "Local".
-  local: ["meta-llama/llama-3.3-70b-instruct:free"],
+  local: [
+    "meta-llama/llama-3.3-70b-instruct:free",
+  ],
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
 
-// Human-readable labels used only for server logs (never sent to the client).
 export const LORD_MODE_LABELS: Record<LordMode, string> = {
   fast: "Fast",
   balanced: "Balanced",
