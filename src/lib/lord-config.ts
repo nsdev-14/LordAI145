@@ -1,31 +1,136 @@
-/** Client-safe LORD constants (no server-only imports). */
-
+// Backend-owned model lists. The frontend never sees these ids — it only
+// knows about capability `LordMode`s. Order matters: earlier models are tried
+// first, and the backend automatically falls back through the rest.
 export const LORD_MODELS = {
-  fast: "meta-llama/llama-3.3-70b-instruct:free",
+  fast: [
+    "google/gemma-3n-e4b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+  ],
+
   balanced: [
-  "openai/gpt-oss-120b:free",
-  "qwen/qwen3-coder:free",
-  "google/gemma-3n-e4b-it:free",
-  "openai/gpt-5"
-],
-  reasoning: "nvidia/nemotron-3-ultra-550b-a55b:free",
-  coding: "cohere/north-mini-code:free",
-  creative: "meta-llama/llama-3.3-70b-instruct:free",
+    "openai/gpt-5",
+    "google/gemma-3n-e4b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "openai/gpt-oss-120b:free",
+  ],
+
+  reasoning: [
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "openai/gpt-5",
+    "openai/gpt-oss-120b:free",
+  ],
+
+  coding: [
+    "cohere/north-mini-code:free",
+    "qwen/qwen3-coder:free",
+    "openai/gpt-5",
+  ],
+
+  creative: [
+    "openai/gpt-5",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-3n-e4b-it:free",
+  ],
+
+  // On-device / local-class model used when the user picks "Local".
+  local: ["meta-llama/llama-3.3-70b-instruct:free"],
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
 
-export function getLordModelCandidates(mode: LordMode): string[] {
-  const primary = LORD_MODELS[mode];
+// Human-readable labels used only for server logs (never sent to the client).
+export const LORD_MODE_LABELS: Record<LordMode, string> = {
+  fast: "Fast",
+  balanced: "Balanced",
+  coding: "Coder",
+  creative: "Creator",
+  reasoning: "Reasoner",
+  local: "Local",
+};
 
-  const primaryModels = Array.isArray(primary) ? primary : [primary];
-
-  const fallbackModels = Object.values(LORD_MODELS)
-    .flatMap((m) => (Array.isArray(m) ? m : [m]))
-    .filter((m) => !primaryModels.includes(m));
-
-  return [...primaryModels, ...fallbackModels];
+// Build the ordered candidate list for a mode. An explicit `modelId` (kept for
+// backwards compatibility) is tried first, then the mode's own list. Duplicates
+// are removed while preserving order.
+export function buildCandidates(mode: LordMode, explicitModelId?: string): string[] {
+  const base = LORD_MODELS[mode] ?? [];
+  const list = explicitModelId ? [explicitModelId, ...base] : [...base];
+  return Array.from(new Set(list));
 }
+
+// Backwards-compatible wrapper
+export const getLordModelCandidates = buildCandidates;
+
+// Type-safe error reasons for better IDE support and refactoring safety
+export type ModelErrorReason =
+  | "invalid_api_key"
+  | "malformed_request"
+  | "invalid_messages"
+  | "insufficient_credits"
+  | "rate_limit"
+  | "model_unavailable"
+  | "provider_error"
+  | "unknown";
+
+export interface ModelErrorClassification {
+  retryable: boolean;
+  reason: ModelErrorReason;
+}
+
+// Pre-compiled regex patterns for performance (avoids recompilation on every call)
+const ERROR_PATTERNS = {
+  // Non-retryable: auth / client mistakes
+  invalidApiKey: /invalid api key|missing api key|expired api key|unauthorized|authentication failed|not authorized|401/i,
+  malformedRequest: /malformed request|invalid request|bad request|400/i,
+  invalidMessages: /invalid message|message is invalid|content policy|moderation/i,
+
+  // Retryable: capacity / provider / network
+  insufficientCredits: /insufficient.{0,12}credit|payment required|402/i,
+  rateLimit: /rate limit|too many requests|429/i,
+  modelUnavailable: /model not found|model unavailable|does not exist|not supported|404/i,
+  providerError: /provider unavailable|provider error|upstream|bad gateway|502|503|504|service unavailable|gateway timeout|timeout|timed out|etimedout|econnrefused|econnreset|network|fetch failed|enotfound|aborted|streaming failed|stream error/i,
+} as const;
+
+// Maps a raw provider/model error to a retry decision. Retryable errors cause
+// the backend to fall through to the next candidate; non-retryable errors stop
+// immediately (the failure is the caller's responsibility, e.g. a bad key).
+export function classifyModelError(error: unknown): ModelErrorClassification {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error ?? "unknown error");
+  const msg = raw.toLowerCase();
+
+  // Check non-retryable patterns first (order matters for specificity)
+  if (ERROR_PATTERNS.invalidApiKey.test(msg)) {
+    return { retryable: false, reason: "invalid_api_key" };
+  }
+  if (ERROR_PATTERNS.malformedRequest.test(msg)) {
+    return { retryable: false, reason: "malformed_request" };
+  }
+  if (ERROR_PATTERNS.invalidMessages.test(msg)) {
+    return { retryable: false, reason: "invalid_messages" };
+  }
+
+  // Check retryable patterns
+  if (ERROR_PATTERNS.insufficientCredits.test(msg)) {
+    return { retryable: true, reason: "insufficient_credits" };
+  }
+  if (ERROR_PATTERNS.rateLimit.test(msg)) {
+    return { retryable: true, reason: "rate_limit" };
+  }
+  if (ERROR_PATTERNS.modelUnavailable.test(msg)) {
+    return { retryable: true, reason: "model_unavailable" };
+  }
+  if (ERROR_PATTERNS.providerError.test(msg)) {
+    return { retryable: true, reason: "provider_error" };
+  }
+
+  // Unknown errors are treated as retryable so fallback gets a chance.
+  return { retryable: true, reason: "unknown" };
+}
+
 export const LORD_SYSTEM_PROMPT = `You are LORD, the autonomous AI of this application.
 
 MISSION:

@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { WakeWordProvider } from "../components/lord/WakeWordProvider";
 import { AppContextProvider } from "../components/lord/AppContextProvider";
+import { CalendarProvider } from "../components/lord/CalendarProvider";
 import { setupApiInterceptor } from "../lib/api-interceptor";
 
 // Initialize global monitoring
@@ -180,10 +181,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppContextProvider>
-        <WakeWordProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </WakeWordProvider>
+        <CalendarProvider>
+          <WakeWordProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </WakeWordProvider>
+        </CalendarProvider>
       </AppContextProvider>
     </QueryClientProvider>
   );

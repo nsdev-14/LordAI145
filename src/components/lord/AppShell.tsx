@@ -13,6 +13,7 @@ import {
   User as UserIcon,
   Menu,
   X,
+  Calendar,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,17 +24,19 @@ import { ParticleField } from "./ParticleField";
 import { WakeIndicator } from "./WakeIndicator";
 import { HealthHud } from "./HealthHud";
 import { NavigationDock } from "./NavigationDock";
+import { DailyBriefing } from "./DailyBriefing";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/study", label: "Study", icon: GraduationCap },
+  { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: Target },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/study"].includes(item.to));
+const PRIMARY_NAV = NAV.filter((item) => ["/", "/chat", "/study", "/calendar"].includes(item.to));
 const SECONDARY_NAV = NAV.filter((item) => !PRIMARY_NAV.some((primary) => primary.to === item.to));
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -246,6 +249,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <WakeIndicator />
+      <DailyBriefing />
     </div>
   );
 }

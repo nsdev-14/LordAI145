@@ -10,6 +10,7 @@ const MODE_CONFIG: Record<LordMode, { label: string; description: string }> = {
   reasoning: { label: "Thinking", description: "Reasoning model" },
   coding: { label: "Code", description: "Coding mode" },
   creative: { label: "Create", description: "Creative mode" },
+  local: { label: "Local", description: "On-device model" },
 };
 
 interface ModelSelectorProps {

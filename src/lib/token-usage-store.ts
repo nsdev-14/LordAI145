@@ -19,7 +19,7 @@ export interface TokenUsageAverages {
   avgOutput: number;
   avgTotal: number;
   totalCost: number;
-  mostUsedModel: string | null;
+  mostUsedMode: string | null;
   count: number;
 }
 
@@ -85,7 +85,7 @@ export function computeAverages(history: TokenUsageEvent[]): TokenUsageAverages 
       avgOutput: 0,
       avgTotal: 0,
       totalCost: 0,
-      mostUsedModel: null,
+      mostUsedMode: null,
       count: 0,
     };
   }
@@ -94,13 +94,13 @@ export function computeAverages(history: TokenUsageEvent[]): TokenUsageAverages 
   const sumTotal = history.reduce((a, e) => a + e.totalTokens, 0);
   const totalCost = history.reduce((a, e) => a + e.cost, 0);
   const counts = new Map<string, number>();
-  for (const e of history) counts.set(e.model, (counts.get(e.model) ?? 0) + 1);
-  let mostUsedModel: string | null = null;
+  for (const e of history) counts.set(e.mode, (counts.get(e.mode) ?? 0) + 1);
+  let mostUsedMode: string | null = null;
   let max = 0;
-  for (const [model, c] of counts) {
+  for (const [mode, c] of counts) {
     if (c > max) {
       max = c;
-      mostUsedModel = model;
+      mostUsedMode = mode;
     }
   }
   return {
@@ -108,7 +108,7 @@ export function computeAverages(history: TokenUsageEvent[]): TokenUsageAverages 
     avgOutput: Math.round(sumOutput / history.length),
     avgTotal: Math.round(sumTotal / history.length),
     totalCost: Math.round(totalCost * 10000) / 10000,
-    mostUsedModel,
+    mostUsedMode,
     count: history.length,
   };
 }

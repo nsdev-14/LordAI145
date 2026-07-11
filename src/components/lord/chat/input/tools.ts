@@ -8,6 +8,7 @@ import {
   Layers,
   FileText,
   Languages,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 import type { ToolId } from "./types";
@@ -73,6 +74,12 @@ export const TOOLS: ToolDef[] = [
     label: "Translate",
     description: "Translate between languages",
     icon: Languages,
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    description: "Create and manage calendar events",
+    icon: Calendar,
   },
 ];
 

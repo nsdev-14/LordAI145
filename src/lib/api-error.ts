@@ -1,6 +1,8 @@
 export type ApiErrorCode =
   | "INVALID_REQUEST"
   | "AI_NOT_CONFIGURED"
+  | "AI_AUTH_ERROR"
+  | "AI_BAD_REQUEST"
   | "AI_CREDITS_EXHAUSTED"
   | "AI_RATE_LIMITED"
   | "AI_UPSTREAM_ERROR"

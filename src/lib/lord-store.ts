@@ -1,5 +1,5 @@
 /**
- * Local persistence layer for LORD AI OS.
+ * Local persistence layer for LORD AI.
  * Single-user app — everything lives in localStorage with typed helpers.
  * (Can be swapped for Firestore later without changing call sites.)
  */
@@ -70,6 +70,43 @@ export interface Conversation {
   title: string;
   updatedAt: number;
   messages: Array<{ id: string; role: "user" | "assistant"; content: string }>;
+}
+
+// Calendar Event types
+export type EventCategory = 
+  | "study" 
+  | "work" 
+  | "fitness" 
+  | "personal" 
+  | "finance" 
+  | "travel" 
+  | "meeting" 
+  | "health" 
+  | "goal" 
+  | "other";
+
+export type EventPriority = "low" | "med" | "high";
+
+export type RecurrenceType = "none" | "daily" | "weekly" | "monthly" | "yearly";
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: string; // ISO date string (YYYY-MM-DD)
+  startTime?: string; // HH:MM format
+  endTime?: string; // HH:MM format
+  location?: string;
+  priority: EventPriority;
+  category: EventCategory;
+  reminder?: string; // ISO datetime string for reminder
+  recurrence: RecurrenceType;
+  color?: string; // Custom color for the event
+  notes?: string;
+  createdBy: "ai" | "manual";
+  createdAt: number;
+  updatedAt: number;
+  completed?: boolean;
 }
 
 export const uid = () =>

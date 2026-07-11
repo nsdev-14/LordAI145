@@ -4,10 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Copy, Check, Trash2, Download, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tokenUsageStore, useTokenUsage, type TokenUsageEvent } from "@/lib/token-usage-store";
-import { getModelDef } from "@/components/lord/chat/input/models";
+import { modeLabel } from "@/lib/modes";
 
-function shortModel(model: string): string {
-  return getModelDef(model)?.label ?? model.split("/").pop() ?? model;
+function shortModel(mode: string): string {
+  return modeLabel(mode);
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -116,7 +116,7 @@ export function TokenUsagePanel() {
           <div>
             <SectionTitle>Latest Response</SectionTitle>
             <div className="grid grid-cols-3 gap-3">
-              <Stat label="Model" value={shortModel(latest.model)} />
+              <Stat label="Mode" value={shortModel(latest.mode)} />
               <Stat label="Mode" value={latest.mode} />
               <Stat label="Finish Reason" value={latest.finishReason} />
             </div>
@@ -221,8 +221,8 @@ export function TokenUsagePanel() {
               <Stat label="Avg Total" value={<AnimatedNumber value={averages.avgTotal} />} />
               <Stat label="Total Cost" value={`$${averages.totalCost.toFixed(4)}`} />
               <Stat
-                label="Most-Used Model"
-                value={averages.mostUsedModel ? shortModel(averages.mostUsedModel) : "—"}
+                label="Most-Used Mode"
+                value={averages.mostUsedMode ? shortModel(averages.mostUsedMode) : "—"}
               />
             </div>
           </div>
@@ -331,7 +331,7 @@ function FragmentRow({
         className="cursor-pointer border-t border-border/30 transition-colors hover:bg-white/[0.04]"
       >
         <td className="px-3 py-2 text-muted-foreground">{formatTimestamp(event.timestamp)}</td>
-        <td className="px-3 py-2 text-foreground/90">{shortModel(event.model)}</td>
+        <td className="px-3 py-2 text-foreground/90">{shortModel(event.mode)}</td>
         <td className="px-3 py-2 text-right font-mono text-foreground/80">{event.inputTokens}</td>
         <td className="px-3 py-2 text-right font-mono text-foreground/80">{event.outputTokens}</td>
         <td className="px-3 py-2 text-right font-mono text-cyan-200">{event.totalTokens}</td>

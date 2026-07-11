@@ -12,7 +12,9 @@ import { TypingDots } from "@/components/lord/TypingDots";
 import { ChatInput } from "@/components/lord/chat/input/ChatInput";
 import type { ChatSubmitPayload } from "@/components/lord/chat/input/types";
 import { getToolDef } from "@/components/lord/chat/input/tools";
-import { DEFAULT_MODEL_ID } from "@/components/lord/chat/input/models";
+import { detectCalendarEvent, createEventFromDetection, type DetectedEvent } from "@/lib/calendar-event-detector";
+import { useCalendar } from "@/components/lord/CalendarProvider";
+import { DEFAULT_MODE, type LordMode } from "@/lib/modes";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { tokenUsageStore, type TokenUsageEvent } from "@/lib/token-usage-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,8 +52,9 @@ function ChatPage() {
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
+  const calendar = useCalendar();
 
-  const [modelId, setModelId] = usePersistedState<string>("chat-model", DEFAULT_MODEL_ID);
+  const [mode, setMode] = usePersistedState<LordMode>("chat-mode", DEFAULT_MODE);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -61,17 +64,18 @@ function ChatPage() {
     conversationId: string;
     message: UIMessage;
   } | null>(null);
+  const [pendingEvent, setPendingEvent] = useState<DetectedEvent | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
-  const modelIdRef = useRef<string>(modelId);
-  modelIdRef.current = modelId;
+  const modeRef = useRef<LordMode>(mode);
+  modeRef.current = mode;
   const requestBodyRef = useRef({
-    modelId,
+    mode,
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
   });
 
   requestBodyRef.current = {
-    modelId,
+    mode,
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
   };
 
@@ -135,13 +139,13 @@ function ChatPage() {
         tokenUsageStore.record(meta.tokenUsage);
       }
       const activeConversationId = activeConversationIdRef.current;
-      const requestModel = modelIdRef.current;
+      const requestMode = modeRef.current;
       if (isError || !activeConversationId) {
         console.warn(
           JSON.stringify({
             event: "chat_stream_finish_skipped",
             conversationId: activeConversationId,
-            modelId: requestModel,
+            mode: requestMode,
             isError,
           }),
         );
@@ -167,7 +171,7 @@ function ChatPage() {
             role: "assistant",
             conversationId: activeConversationId,
             messageId: assistantMessageId,
-            modelId: requestModel,
+            mode: requestMode,
           }),
         );
         const { error: insertError } = await supabase.from("messages").insert({
@@ -176,7 +180,7 @@ function ChatPage() {
           user_id: user.id,
           role: "assistant",
           content,
-          model: requestModel,
+          model: requestMode,
         });
         if (insertError) {
           console.error(
@@ -186,7 +190,7 @@ function ChatPage() {
               role: "assistant",
               conversationId: activeConversationId,
               messageId: assistantMessageId,
-              modelId: requestModel,
+              mode: requestMode,
               error: insertError.message,
             }),
           );
@@ -199,7 +203,7 @@ function ChatPage() {
               role: "assistant",
               conversationId: activeConversationId,
               messageId: assistantMessageId,
-              modelId: requestModel,
+              mode: requestMode,
             }),
           );
         }
@@ -239,7 +243,7 @@ function ChatPage() {
         event: "supabase_insert_success",
         table: "conversations",
         conversationId: data.id,
-        modelId,
+        mode,
       }),
     );
     setConversationId(data.id);
@@ -315,7 +319,7 @@ function ChatPage() {
       JSON.stringify({
         event: "chat_stream_start",
         conversationId,
-        modelId: modelIdRef.current,
+        mode: modeRef.current,
         messageId: pendingInitialSend.message.id,
       }),
     );
@@ -363,7 +367,7 @@ function ChatPage() {
         JSON.stringify({
           event: "chat_submit",
           conversationId: convId,
-          modelId,
+          mode,
           isNewConversation,
         }),
       );
@@ -380,7 +384,7 @@ function ChatPage() {
           role: "user",
           conversationId: convId,
           messageId: userMsgId,
-          modelId,
+          mode,
         }),
       );
       const { error: insertError } = await supabase.from("messages").insert({
@@ -389,7 +393,7 @@ function ChatPage() {
         user_id: user.id,
         role: "user",
         content: text,
-        model: modelId,
+        model: mode,
       });
       if (insertError) {
         console.error(
@@ -399,7 +403,7 @@ function ChatPage() {
             role: "user",
             conversationId: convId,
             messageId: userMsgId,
-            modelId,
+            mode,
             error: insertError.message,
           }),
         );
@@ -412,7 +416,7 @@ function ChatPage() {
           role: "user",
           conversationId: convId,
           messageId: userMsgId,
-          modelId,
+          mode,
         }),
       );
       const { error: touchError } = await supabase
@@ -431,14 +435,19 @@ function ChatPage() {
         throw touchError;
       }
       qc.invalidateQueries({ queryKey: ["conversations", user.id] });
-      if (isNewConversation) {
+
+      // Detect calendar event in user message
+      const detected = detectCalendarEvent(text);
+      if (detected && detected.confidence > 0.5) {
+        setPendingEvent(detected);
+      } else if (isNewConversation) {
         setPendingInitialSend({ conversationId: convId, message: userMessage });
       } else {
         console.info(
           JSON.stringify({
             event: "chat_stream_start",
             conversationId: convId,
-            modelId,
+            mode,
             messageId: userMsgId,
           }),
         );
@@ -480,7 +489,7 @@ function ChatPage() {
             role: "assistant",
             conversationId: activeConversationId,
             messageId: lastAssistant.id,
-            modelId,
+            mode,
           }),
         );
       }
@@ -488,7 +497,7 @@ function ChatPage() {
         JSON.stringify({
           event: "chat_stream_start",
           conversationId: activeConversationId,
-          modelId,
+          mode,
           trigger: "regenerate",
         }),
       );
@@ -629,8 +638,8 @@ function ChatPage() {
                 onStop={stop}
                 streaming={streaming}
                 disabled={savingMessage}
-                modelId={modelId}
-                onModelIdChange={setModelId}
+                mode={mode}
+                onModeChange={setMode}
               />
             </div>
           </div>

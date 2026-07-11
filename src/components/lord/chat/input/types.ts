@@ -18,7 +18,8 @@ export type ToolId =
   | "study-mode"
   | "flashcards"
   | "summarize"
-  | "translate";
+  | "translate"
+  | "calendar";
 
 export interface ChatSubmitPayload {
   text: string;

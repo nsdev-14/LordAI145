@@ -7,7 +7,7 @@ import {
   type DragEvent,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Paperclip, Sparkles, ArrowUp, Square } from "lucide-react";
+import { Paperclip, Sparkles, ArrowUp, Square, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Attachment, AttachmentKind, ChatSubmitPayload, ToolId } from "./types";
 import { FileChip } from "./FileChip";
@@ -17,6 +17,8 @@ import { AttachmentMenu } from "./AttachmentMenu";
 import { ToolsMenu } from "./ToolsMenu";
 import { ModelSelector } from "./ModelSelector";
 import { VoiceRecorder } from "./VoiceRecorder";
+import { CalendarModal } from "@/components/lord/CalendarModal";
+import type { LordMode } from "@/lib/modes";
 
 type OpenMenu = "attach" | "tools" | null;
 
@@ -39,8 +41,8 @@ export function ChatInput({
   onStop,
   streaming,
   disabled,
-  modelId,
-  onModelIdChange,
+  mode,
+  onModeChange,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -48,8 +50,8 @@ export function ChatInput({
   onStop: () => void;
   streaming: boolean;
   disabled?: boolean;
-  modelId: string;
-  onModelIdChange: (id: string) => void;
+  mode: LordMode;
+  onModeChange: (mode: LordMode) => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -57,6 +59,7 @@ export function ChatInput({
   const [activeTool, setActiveTool] = useState<ToolId | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [dragging, setDragging] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useLayoutEffect(() => {
     const ta = taRef.current;
@@ -278,7 +281,17 @@ export function ChatInput({
           />
 
           <div className="flex items-center gap-1.5">
-            <ModelSelector value={modelId} onChange={onModelIdChange} />
+            <ModelSelector value={mode} onChange={onModeChange} />
+            <motion.button
+              type="button"
+              onClick={() => setCalendarOpen(true)}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              aria-label="Open calendar"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/5 hover:text-cyan-200"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </motion.button>
             <VoiceRecorder onResult={handleVoiceResult} disabled={streaming || disabled} />
             <AnimatePresence mode="wait" initial={false}>
               {streaming ? (
@@ -321,6 +334,8 @@ export function ChatInput({
           </div>
         </div>
       </motion.form>
+      
+      <CalendarModal open={calendarOpen} onClose={() => setCalendarOpen(false)} />
     </div>
   );
 }

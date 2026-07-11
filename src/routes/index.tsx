@@ -10,6 +10,7 @@ import {
   Activity,
   Zap,
   Clock,
+  Calendar,
 } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/")({
 const QUICK_ACTIONS = [
   { to: "/chat", label: "Chat", icon: MessageSquare, hint: "Talk to LORD" },
   { to: "/study", label: "Study", icon: GraduationCap, hint: "Learn faster" },
+  { to: "/calendar", label: "Calendar", icon: Calendar, hint: "Your timeline" },
   { to: "/documents", label: "Research", icon: Search, hint: "Deep dive" },
   { to: "/productivity", label: "Tasks", icon: Target, hint: "Get it done" },
   { to: "/memory", label: "Memory", icon: Brain, hint: "Recall" },

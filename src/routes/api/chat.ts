@@ -1,20 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, type UIMessage } from "ai";
 import { z } from "zod";
 import {
   createOpenRouterProvider,
+  streamWithFallback,
   LORD_MODELS,
   LORD_SYSTEM_PROMPT,
-  getLordModelCandidates,
+  classifyModelError,
   type LordMode,
 } from "@/lib/ai-gateway.server";
-import { MODEL_REGISTRY } from "@/lib/model-registry";
-import { estimateCost } from "@/lib/model-cost";
 import type { TokenUsageEvent } from "@/lib/token-usage-store";
 import { apiErrorResponse, getSafeErrorMessage } from "@/lib/api-error";
 import { requireSupabaseRequestAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+
+const MODE_ENUM = Object.keys(LORD_MODELS) as [LordMode, ...LordMode[]];
 
 const ChatRequestSchema = z.object({
   messages: z
@@ -28,7 +29,9 @@ const ChatRequestSchema = z.object({
     )
     .min(1)
     .max(100),
-  mode: z.enum(["fast", "balanced", "reasoning", "coding", "creative"]).optional(),
+  // Frontend sends a capability mode only — the backend owns model selection
+  // and automatic fallback. `modelId` is kept for backwards compatibility.
+  mode: z.enum(MODE_ENUM).optional(),
   modelId: z.string().min(1).optional(),
   context: z
     .object({
@@ -38,33 +41,6 @@ const ChatRequestSchema = z.object({
     .passthrough()
     .optional(),
 });
-
-function getRateLimitError(message: string) {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("rate limit") ||
-    normalized.includes("too many requests") ||
-    normalized.includes("429")
-  );
-}
-
-function getModelUnavailableError(message: string) {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("model") &&
-    (normalized.includes("not found") ||
-      normalized.includes("unavailable") ||
-      normalized.includes("does not exist"))
-  );
-}
-
-function resolveModelId(modelId: string | undefined, mode: LordMode): string {
-  if (modelId) {
-    if (MODEL_REGISTRY.some((m) => m.id === modelId)) return modelId;
-    if (modelId === "local") return "meta-llama/llama-3.3-70b-instruct:free";
-  }
-  return getLordModelCandidates(mode)[0];
-}
 
 function logChat(event: string, payload: Record<string, unknown>) {
   console.info(JSON.stringify({ event, ...payload }));
@@ -134,11 +110,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const body = parsed.data;
         const mode: LordMode = body.mode ?? "balanced";
-        const modelId = body.modelId;
-        const primaryModel = resolveModelId(modelId, mode);
-        const modelCandidates = Array.from(
-          new Set([primaryModel, ...getLordModelCandidates(mode)]),
-        );
+        const explicitModelId = body.modelId;
         const uiMessages = body.messages as unknown as UIMessage[];
         const authContext = context as
           | { userId?: string; supabase?: SupabaseClient<Database> }
@@ -180,81 +152,45 @@ export const Route = createFileRoute("/api/chat")({
         logChat("api_chat_request_validated", {
           requestId,
           mode,
-          modelCandidates,
+          explicitModelId: explicitModelId ?? null,
           messageCount: body.messages.length,
           lastUserPreview: getLastUserText(uiMessages),
         });
 
         const gateway = createOpenRouterProvider(apiKey);
-        let lastError: unknown = null;
-        let lastDetail = "";
+        let tokenUsageEvent: TokenUsageEvent | null = null;
 
-        for (const candidateModel of modelCandidates) {
-          try {
-            let sawFirstChunk = false;
-            logChat("openrouter_model_attempt", { requestId, mode, model: candidateModel });
-            const result = streamText({
-              model: gateway(candidateModel),
-              system: systemPrompt,
-              messages: await convertToModelMessages(uiMessages),
-              maxOutputTokens: 1024,
-              maxRetries: 2,
-              timeout: 45_000,
-              experimental_onStart: () => {
-                logChat("openrouter_stream_start", { requestId, mode, model: candidateModel });
-              },
-              onChunk: () => {
-                if (!sawFirstChunk) {
-                  sawFirstChunk = true;
-                  logChat("openrouter_stream_first_chunk", {
-                    requestId,
-                    mode,
-                    model: candidateModel,
-                  });
-                }
-              },
-              onError: ({ error }) => {
-                logChat("openrouter_stream_error", {
+        try {
+          const { result, model } = await streamWithFallback({
+            gateway,
+            mode,
+            explicitModelId,
+            system: systemPrompt,
+            messages: await convertToModelMessages(uiMessages),
+            requestId,
+            maxOutputTokens: 1024,
+            timeoutMs: 45_000,
+            onTokenUsage: (event) => {
+              tokenUsageEvent = event;
+            },
+          });
+
+          return result.toUIMessageStreamResponse({
+            headers: {
+              "Cache-Control": "no-store",
+              "X-LordAI-Request-Id": requestId,
+              "X-LordAI-Model": model,
+            },
+            messageMetadata: ({ part }) => {
+              if (part.type !== "finish") return undefined;
+              if (tokenUsageEvent) return { tokenUsage: tokenUsageEvent };
+              // Fallback: build from the stream's own usage if the probe
+              // callback hasn't populated it yet.
+              const usage = part.totalUsage;
+              return {
+                tokenUsage: {
                   requestId,
-                  mode,
-                  model: candidateModel,
-                  error: getSafeErrorMessage(error),
-                });
-              },
-              onFinish: ({ finishReason, usage }) => {
-                const cost = estimateCost(
-                  candidateModel,
-                  usage.inputTokens ?? 0,
-                  usage.outputTokens ?? 0,
-                );
-                logChat("openrouter_stream_end", {
-                  requestId,
-                  mode,
-                  model: candidateModel,
-                  finishReason,
-                  usage: {
-                    inputTokens: usage.inputTokens ?? 0,
-                    outputTokens: usage.outputTokens ?? 0,
-                    totalTokens: usage.totalTokens ?? 0,
-                    reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
-                    cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-                    cost,
-                  },
-                });
-              },
-            });
-            return result.toUIMessageStreamResponse({
-              headers: {
-                "Cache-Control": "no-store",
-                "X-LordAI-Request-Id": requestId,
-                "X-LordAI-Model": candidateModel,
-              },
-              messageMetadata: ({ part }) => {
-                if (part.type !== "finish") return undefined;
-                const usage = part.totalUsage;
-                const event: TokenUsageEvent = {
-                  requestId,
-                  model: candidateModel,
+                  model,
                   mode,
                   finishReason: part.finishReason,
                   inputTokens: usage.inputTokens ?? 0,
@@ -262,59 +198,66 @@ export const Route = createFileRoute("/api/chat")({
                   reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
                   cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
                   totalTokens: usage.totalTokens ?? 0,
-                  cost: estimateCost(
-                    candidateModel,
-                    usage.inputTokens ?? 0,
-                    usage.outputTokens ?? 0,
-                  ),
+                  cost: 0,
                   timestamp: Date.now(),
-                };
-                return { tokenUsage: event };
-              },
-            });
-          } catch (err) {
-            lastError = err;
-            lastDetail = getSafeErrorMessage(err);
-            logChat("openrouter_model_error", {
-              requestId,
-              mode,
-              model: candidateModel,
-              error: lastDetail,
-            });
-            if (!getRateLimitError(lastDetail) && !getModelUnavailableError(lastDetail)) break;
-            logChat("openrouter_fallback_model", {
-              requestId,
-              mode,
-              failedModel: candidateModel,
-              reason: lastDetail,
-            });
-          }
-        }
+                } satisfies TokenUsageEvent,
+              };
+            },
+          });
+        } catch (err) {
+          const failures = (err as unknown as { lordFailures?: Array<{ reason: string }> })
+            ?.lordFailures;
+          logChat("api_chat_stream_failed", {
+            requestId,
+            mode,
+            reason:
+              failures?.[failures.length - 1]?.reason ?? classifyModelError(err).reason,
+            message: getSafeErrorMessage(err),
+          });
 
-        const detail = lastDetail || getSafeErrorMessage(lastError);
-        const lower = detail.toLowerCase();
-        if (lower.includes("credit") || lower.includes("payment required")) {
+          // When credits/rate-limits fail for one model they fail for all, so
+          // surface the most specific status we have.
+          if (failures?.some((f) => f.reason === "insufficient_credits")) {
+            return apiErrorResponse(
+              402,
+              "AI_CREDITS_EXHAUSTED",
+              "AI credits are exhausted. Add workspace credits and try again.",
+              requestId,
+            );
+          }
+          if (failures?.some((f) => f.reason === "rate_limit")) {
+            return apiErrorResponse(
+              429,
+              "AI_RATE_LIMITED",
+              "AI is receiving too many requests. Please retry shortly.",
+              requestId,
+            );
+          }
+
+          const { reason } = classifyModelError(err);
+          if (reason === "invalid_api_key") {
+            return apiErrorResponse(
+              401,
+              "AI_AUTH_ERROR",
+              "The AI provider rejected the request. Check the server API key.",
+              requestId,
+            );
+          }
+          if (reason === "malformed_request" || reason === "invalid_messages") {
+            return apiErrorResponse(
+              400,
+              "AI_BAD_REQUEST",
+              "The AI request was malformed.",
+              requestId,
+            );
+          }
           return apiErrorResponse(
-            402,
-            "AI_CREDITS_EXHAUSTED",
-            "AI credits are exhausted. Add workspace credits and try again.",
+            502,
+            "AI_UPSTREAM_ERROR",
+            "The AI provider could not complete this request. Please retry.",
             requestId,
           );
         }
-        if (getRateLimitError(detail)) {
-          return apiErrorResponse(
-            429,
-            "AI_RATE_LIMITED",
-            "AI is receiving too many requests. Please retry shortly.",
-            requestId,
-          );
-        }
-        return apiErrorResponse(
-          502,
-          "AI_UPSTREAM_ERROR",
-          "The AI provider could not complete this request. Please retry.",
-          requestId,
-        );
       },
     },
   },
