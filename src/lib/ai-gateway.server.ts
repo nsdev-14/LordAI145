@@ -8,6 +8,7 @@ import {
   buildCandidates,
   classifyModelError,
   type LordMode,
+  type ModelAttempt,
 } from "./lord-config";
 
 const OPENROUTER_REFERER = "https://lordai.app";
@@ -54,7 +55,7 @@ async function openRouterFetch(input: RequestInfo | URL, init?: RequestInit) {
 
   try {
     const response = await fetch(input, { ...init, signal });
-    if (response.status === 429 || response.status === 404) {
+    if (response.status === 429 || response.status === 404 || response.status >= 500) {
       console.warn(
         JSON.stringify({
           event: "openrouter_recoverable_response",
@@ -106,6 +107,7 @@ export interface StreamWithFallbackOptions {
 export interface StreamWithFallbackResult {
   result: Awaited<ReturnType<typeof streamText>>;
   model: string;
+  attempts: ModelAttempt[];
 }
 
 // Tries each candidate model for `mode` in order. A candidate is validated with
@@ -124,12 +126,12 @@ export async function streamWithFallback(
 
   console.info(`Mode: ${modeLabel}`);
 
-  const failures: Array<{ model: string; reason: string; retryable: boolean }> = [];
+  const attempts: ModelAttempt[] = [];
 
   for (let i = 0; i < candidates.length; i++) {
     const modelId = candidates[i];
-    const attempt = i + 1;
-    console.info(`Attempt ${attempt}:\n${modelId}`);
+    const attemptNum = i + 1;
+    console.info(`Attempt ${attemptNum}:\n${modelId}`);
 
     try {
       await generateText({
@@ -142,14 +144,36 @@ export async function streamWithFallback(
         maxRetries: 0,
       });
     } catch (err) {
-      const { retryable, reason } = classifyModelError(err);
-      console.info(`Failed:\n${REASON_LABELS[reason] ?? reason}`);
-      failures.push({ model: modelId, reason, retryable });
-      if (!retryable) {
+      const classification = classifyModelError(err);
+const attempt: ModelAttempt = {
+        model: modelId,
+        status: classification.status ?? 0,
+        reason: REASON_LABELS[classification.reason] ?? classification.reason,
+        retryable: classification.retryable,
+        providerMessage: classification.providerMessage,
+        errorCode: classification.errorCode,
+        requestId: classification.requestId,
+        timestamp: Date.now(),
+      };
+      attempts.push(attempt);
+      console.info(`Failed:\n${attempt.reason} (status: ${attempt.status}, retryable: ${attempt.retryable})`);
+      if (!classification.retryable) {
         console.error(
-          JSON.stringify({ event: "lord_mode_non_retryable", requestId, mode, model: modelId, reason }),
+          JSON.stringify({
+            event: "lord_mode_non_retryable",
+            requestId,
+            mode,
+            model: modelId,
+            reason: classification.reason,
+            status: classification.status,
+            providerMessage: classification.providerMessage,
+            errorCode: classification.errorCode,
+            providerRequestId: classification.requestId,
+          }),
         );
-        throw err;
+        const error = new Error(`Model ${modelId} failed: ${attempt.reason}`);
+        (error as unknown as { lordAttempts: ModelAttempt[] }).lordAttempts = attempts;
+        throw error;
       }
       continue;
     }
@@ -232,12 +256,12 @@ export async function streamWithFallback(
       },
     });
 
-    return { result, model: modelId };
+    return { result, model: modelId, attempts };
   }
 
-  console.error(JSON.stringify({ event: "lord_mode_exhausted", requestId, mode, failures }));
+  console.error(JSON.stringify({ event: "lord_mode_exhausted", requestId, mode, attempts }));
   const exhausted = new Error(`All models failed for mode "${mode}".`);
-  (exhausted as unknown as { lordFailures: typeof failures }).lordFailures = failures;
+  (exhausted as unknown as { lordAttempts: ModelAttempt[] }).lordAttempts = attempts;
   throw exhausted;
 }
 
@@ -248,4 +272,5 @@ export {
   buildCandidates,
   classifyModelError,
   type LordMode,
+  type ModelAttempt,
 } from "./lord-config";

@@ -1,39 +1,40 @@
 // Backend-owned model lists. The frontend never sees these ids — it only
 // knows about capability `LordMode`s. Order matters: earlier models are tried
 // first, and the backend automatically falls back through the rest.
+// Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
   fast: [
-    "google/gemma-3n-e4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.1-70b-instruct:free",
   ],
 
   balanced: [
-    "openai/gpt-5",
-    "google/gemma-3n-e4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "openai/gpt-oss-120b:free",
+    "openai/gpt-4o-mini",
+    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.1-70b-instruct:free",
+    "openai/gpt-4o",
   ],
 
   reasoning: [
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "openai/gpt-5",
-    "openai/gpt-oss-120b:free",
+    "anthropic/claude-3.5-sonnet",
+    "openai/gpt-4o",
+    "deepseek/deepseek-chat",
   ],
 
   coding: [
-    "cohere/north-mini-code:free",
-    "qwen/qwen3-coder:free",
-    "openai/gpt-5",
+    "qwen/qwen-2.5-coder-32b-instruct",
+    "deepseek/deepseek-chat",
+    "openai/gpt-4o",
   ],
 
   creative: [
-    "openai/gpt-5",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-3n-e4b-it:free",
+    "openai/gpt-4o",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-2.5-flash",
   ],
 
   // On-device / local-class model used when the user picks "Local".
-  local: ["meta-llama/llama-3.3-70b-instruct:free"],
+  local: ["meta-llama/llama-3.1-70b-instruct:free"],
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
@@ -74,6 +75,21 @@ export type ModelErrorReason =
 export interface ModelErrorClassification {
   retryable: boolean;
   reason: ModelErrorReason;
+  status?: number;
+  providerMessage?: string;
+  errorCode?: string;
+  requestId?: string;
+}
+
+export interface ModelAttempt {
+  model: string;
+  status: number;
+  reason: string;
+  retryable: boolean;
+  providerMessage?: string;
+  errorCode?: string;
+  requestId?: string;
+  timestamp: number;
 }
 
 // Pre-compiled regex patterns for performance (avoids recompilation on every call)
@@ -90,6 +106,31 @@ const ERROR_PATTERNS = {
   providerError: /provider unavailable|provider error|upstream|bad gateway|502|503|504|service unavailable|gateway timeout|timeout|timed out|etimedout|econnrefused|econnreset|network|fetch failed|enotfound|aborted|streaming failed|stream error/i,
 } as const;
 
+// Extract HTTP status from error message if present
+function extractStatus(message: string): number | undefined {
+  const match = message.match(/\b(4\d{2}|5\d{2})\b/);
+  return match ? parseInt(match[1], 10) : undefined;
+}
+
+// Extract provider error details from OpenRouter error response
+function extractProviderDetails(error: unknown): { providerMessage?: string; errorCode?: string; requestId?: string } {
+  if (error instanceof Error) {
+    try {
+      const parsed = JSON.parse(error.message);
+      if (parsed && typeof parsed === "object") {
+        return {
+          providerMessage: parsed.error?.message ?? parsed.message,
+          errorCode: parsed.error?.code ?? parsed.code,
+          requestId: parsed.error?.metadata?.request_id ?? parsed.request_id,
+        };
+      }
+    } catch {
+      // Not JSON, continue with regex extraction
+    }
+  }
+  return {};
+}
+
 // Maps a raw provider/model error to a retry decision. Retryable errors cause
 // the backend to fall through to the next candidate; non-retryable errors stop
 // immediately (the failure is the caller's responsibility, e.g. a bad key).
@@ -102,33 +143,36 @@ export function classifyModelError(error: unknown): ModelErrorClassification {
         : JSON.stringify(error ?? "unknown error");
   const msg = raw.toLowerCase();
 
+  const providerDetails = extractProviderDetails(error);
+  const status = extractStatus(raw);
+
   // Check non-retryable patterns first (order matters for specificity)
   if (ERROR_PATTERNS.invalidApiKey.test(msg)) {
-    return { retryable: false, reason: "invalid_api_key" };
+    return { retryable: false, reason: "invalid_api_key", status: status ?? 401, ...providerDetails };
   }
   if (ERROR_PATTERNS.malformedRequest.test(msg)) {
-    return { retryable: false, reason: "malformed_request" };
+    return { retryable: false, reason: "malformed_request", status: status ?? 400, ...providerDetails };
   }
   if (ERROR_PATTERNS.invalidMessages.test(msg)) {
-    return { retryable: false, reason: "invalid_messages" };
+    return { retryable: false, reason: "invalid_messages", status: status ?? 400, ...providerDetails };
   }
 
   // Check retryable patterns
   if (ERROR_PATTERNS.insufficientCredits.test(msg)) {
-    return { retryable: true, reason: "insufficient_credits" };
+    return { retryable: true, reason: "insufficient_credits", status: status ?? 402, ...providerDetails };
   }
   if (ERROR_PATTERNS.rateLimit.test(msg)) {
-    return { retryable: true, reason: "rate_limit" };
+    return { retryable: true, reason: "rate_limit", status: status ?? 429, ...providerDetails };
   }
   if (ERROR_PATTERNS.modelUnavailable.test(msg)) {
-    return { retryable: true, reason: "model_unavailable" };
+    return { retryable: true, reason: "model_unavailable", status: status ?? 404, ...providerDetails };
   }
   if (ERROR_PATTERNS.providerError.test(msg)) {
-    return { retryable: true, reason: "provider_error" };
+    return { retryable: true, reason: "provider_error", status: status ?? 502, ...providerDetails };
   }
 
   // Unknown errors are treated as retryable so fallback gets a chance.
-  return { retryable: true, reason: "unknown" };
+  return { retryable: true, reason: "unknown", status, ...providerDetails };
 }
 
 export const LORD_SYSTEM_PROMPT = `You are LORD, the autonomous AI of this application.

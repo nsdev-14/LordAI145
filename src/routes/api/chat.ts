@@ -8,6 +8,7 @@ import {
   LORD_SYSTEM_PROMPT,
   classifyModelError,
   type LordMode,
+  type ModelAttempt,
 } from "@/lib/ai-gateway.server";
 import type { TokenUsageEvent } from "@/lib/token-usage-store";
 import { apiErrorResponse, getSafeErrorMessage } from "@/lib/api-error";
@@ -205,42 +206,83 @@ export const Route = createFileRoute("/api/chat")({
             },
           });
         } catch (err) {
-          const failures = (err as unknown as { lordFailures?: Array<{ reason: string }> })
-            ?.lordFailures;
+          const attempts = (err as unknown as { lordAttempts?: ModelAttempt[] })?.lordAttempts;
+          const lastAttempt = attempts?.[attempts.length - 1];
           logChat("api_chat_stream_failed", {
             requestId,
             mode,
-            reason:
-              failures?.[failures.length - 1]?.reason ?? classifyModelError(err).reason,
+            reason: lastAttempt?.reason ?? classifyModelError(err).reason,
             message: getSafeErrorMessage(err),
+            attempts: attempts?.map((a) => ({
+              model: a.model,
+              status: a.status,
+              reason: a.reason,
+              retryable: a.retryable,
+              providerMessage: a.providerMessage,
+              errorCode: a.errorCode,
+              requestId: a.requestId,
+            })),
           });
 
           // When credits/rate-limits fail for one model they fail for all, so
           // surface the most specific status we have.
-          if (failures?.some((f) => f.reason === "insufficient_credits")) {
+          if (attempts?.some((a) => a.reason === "Insufficient credits")) {
             return apiErrorResponse(
               402,
               "AI_CREDITS_EXHAUSTED",
               "AI credits are exhausted. Add workspace credits and try again.",
               requestId,
+              {
+                attempts: attempts?.map((a) => ({
+                  model: a.model,
+                  status: a.status,
+                  reason: a.reason,
+                  retryable: a.retryable,
+                  providerMessage: a.providerMessage,
+                  errorCode: a.errorCode,
+                  requestId: a.requestId,
+                })) ?? [],
+              },
             );
           }
-          if (failures?.some((f) => f.reason === "rate_limit")) {
+          if (attempts?.some((a) => a.reason === "Rate limited")) {
             return apiErrorResponse(
               429,
               "AI_RATE_LIMITED",
               "AI is receiving too many requests. Please retry shortly.",
               requestId,
+              {
+                attempts: attempts?.map((a) => ({
+                  model: a.model,
+                  status: a.status,
+                  reason: a.reason,
+                  retryable: a.retryable,
+                  providerMessage: a.providerMessage,
+                  errorCode: a.errorCode,
+                  requestId: a.requestId,
+                })) ?? [],
+              },
             );
           }
 
-          const { reason } = classifyModelError(err);
+          const { reason, status } = classifyModelError(err);
           if (reason === "invalid_api_key") {
             return apiErrorResponse(
               401,
               "AI_AUTH_ERROR",
               "The AI provider rejected the request. Check the server API key.",
               requestId,
+              {
+                attempts: attempts?.map((a) => ({
+                  model: a.model,
+                  status: a.status,
+                  reason: a.reason,
+                  retryable: a.retryable,
+                  providerMessage: a.providerMessage,
+                  errorCode: a.errorCode,
+                  requestId: a.requestId,
+                })),
+              },
             );
           }
           if (reason === "malformed_request" || reason === "invalid_messages") {
@@ -249,13 +291,37 @@ export const Route = createFileRoute("/api/chat")({
               "AI_BAD_REQUEST",
               "The AI request was malformed.",
               requestId,
+              {
+                attempts: attempts?.map((a) => ({
+                  model: a.model,
+                  status: a.status,
+                  reason: a.reason,
+                  retryable: a.retryable,
+                  providerMessage: a.providerMessage,
+                  errorCode: a.errorCode,
+                  requestId: a.requestId,
+                })),
+              },
             );
           }
+
+          // Return detailed error with all attempts
           return apiErrorResponse(
             502,
             "AI_UPSTREAM_ERROR",
-            "The AI provider could not complete this request. Please retry.",
+            "All configured models failed.",
             requestId,
+            {
+              attempts: attempts?.map((a) => ({
+                model: a.model,
+                status: a.status,
+                reason: a.reason,
+                retryable: a.retryable,
+                providerMessage: a.providerMessage,
+                errorCode: a.errorCode,
+                requestId: a.requestId,
+              })) ?? [],
+            },
           );
         }
       },

@@ -13,6 +13,15 @@ export interface ApiErrorBody {
     code: ApiErrorCode;
     message: string;
     requestId: string;
+    attempts?: Array<{
+      model: string;
+      status: number;
+      reason: string;
+      retryable: boolean;
+      providerMessage?: string;
+      errorCode?: string;
+      requestId?: string;
+    }>;
   };
 }
 
@@ -21,11 +30,32 @@ export function apiErrorResponse(
   code: ApiErrorCode,
   message: string,
   requestId: string,
+  extra?: {
+    attempts?: Array<{
+      model: string;
+      status: number;
+      reason: string;
+      retryable: boolean;
+      providerMessage?: string;
+      errorCode?: string;
+      requestId?: string;
+    }>;
+  },
 ) {
-  return Response.json({ error: { code, message, requestId } } satisfies ApiErrorBody, {
-    status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return Response.json(
+    {
+      error: {
+        code,
+        message,
+        requestId,
+        ...(extra?.attempts && { attempts: extra.attempts }),
+      } satisfies ApiErrorBody,
+    },
+    {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }
 
 export function getSafeErrorMessage(error: unknown): string {
