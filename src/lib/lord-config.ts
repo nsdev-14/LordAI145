@@ -3,38 +3,52 @@
 // first, and the backend automatically falls back through the rest.
 // Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
+   // ⚡ Lowest latency / everyday chat
   fast: [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "deepseek/deepseek-r1-0528:free",
-    "nvidia/nemotron-3-super:free",
+    "openai/gpt-oss-20b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-nano-9b-v2:free",
   ],
 
+  // 💬 Best general-purpose assistants
   balanced: [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "nvidia/nemotron-3-ultra:free",
-    "deepseek/deepseek-r1-0528:free",
+    "tencent/hy3:free",
+    "google/gemma-4-31b-it:free",
+    "openai/gpt-oss-120b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
   ],
 
+  // 🧠 Deep reasoning & planning
   reasoning: [
-    "deepseek/deepseek-r1-0528:free",
-    "nvidia/nemotron-3-ultra:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    "tencent/hy3:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "openai/gpt-oss-120b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "liquid/lfm-2.5-1.2b-thinking:free",
   ],
 
+  // 💻 Software engineering
   coding: [
-    "poolside/laguna-m1:free",
+    "poolside/laguna-m.1:free",
     "cohere/north-mini-code:free",
-    "deepseek/deepseek-r1-0528:free",
+    "tencent/hy3:free",
+    "openai/gpt-oss-120b:free",
+    "google/gemma-4-31b-it:free",
   ],
 
+  // 🎨 Writing, storytelling & content creation
   creative: [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "nvidia/nemotron-3-ultra:free",
-    "nvidia/nemotron-3-super:free",
+    "google/gemma-4-31b-it:free",
+    "tencent/hy3:free",
+    "openai/gpt-oss-120b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
   ],
 
+  // 🖥️ Lightweight fallback
   local: [
-    "meta-llama/llama-3.3-70b-instruct:free",
+    "openai/gpt-oss-20b:free",
+    "nvidia/nemotron-nano-9b-v2:free",
+    "liquid/lfm-2.5-1.2b-instruct:free",
   ],
 } as const;
 
