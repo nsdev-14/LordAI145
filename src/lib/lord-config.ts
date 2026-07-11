@@ -4,36 +4,35 @@
 // Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
   fast: [
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-3-27b-it:free",
-  "qwen/qwen3-32b:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
+    "deepseek/deepseek-r1-0528:free",
   ],
 
   balanced: [
-  "qwen/qwen3-32b:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-3-27b-it:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
+    "deepseek/deepseek-r1-0528:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
   ],
 
   reasoning: [
-  "deepseek/deepseek-r1-0528:free",
-  "qwen/qwen3-32b:free",
+    "deepseek/deepseek-r1-0528:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
   ],
 
   coding: [
-  "qwen/qwen3-coder:free",
-  "deepseek/deepseek-r1-0528:free",
+    "qwen/qwen2.5-coder-32b-instruct:free",
+    "deepseek/deepseek-r1-0528:free",
   ],
 
   creative: [
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-3-27b-it:free",
-
+    "mistralai/mistral-small-3.2-24b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
   ],
 
   local: [
-  "meta-llama/llama-3.3-70b-instruct:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
   ],
+
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
