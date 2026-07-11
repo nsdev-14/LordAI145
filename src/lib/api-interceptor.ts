@@ -34,6 +34,7 @@ export function setupApiInterceptor() {
         } else if (response.status >= 500) {
           monitoring.updateStatus("api", "degraded");
         }
+        monitoring.markFailure(response.status === 429);
       } else {
         monitoring.logEvent({
           type: "api",
@@ -41,6 +42,7 @@ export function setupApiInterceptor() {
           message: `Successful request to ${url}`,
           metadata: { url, status: response.status, latency },
         });
+        monitoring.markSuccess();
       }
 
       return response;
@@ -56,6 +58,7 @@ export function setupApiInterceptor() {
       });
 
       monitoring.updateStatus("api", "offline");
+      monitoring.markFailure(false);
       throw error;
     }
   };

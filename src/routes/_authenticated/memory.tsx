@@ -5,6 +5,7 @@ import { Plus, Trash2, Pin, PinOff, Search, LogOut, Loader2 } from "lucide-react
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { supabase } from "@/integrations/supabase/client";
+import { emitDashboardEvent } from "@/lib/dashboard-service";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/memory")({
@@ -63,6 +64,7 @@ function MemoryPage() {
     onSuccess: () => {
       setContent("");
       qc.invalidateQueries({ queryKey: ["memories"] });
+      emitDashboardEvent("memory");
     },
   });
 
@@ -71,7 +73,10 @@ function MemoryPage() {
       const { error } = await supabase.from("memories").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memories"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["memories"] });
+      emitDashboardEvent("memory");
+    },
   });
 
   const pinMutation = useMutation({
@@ -82,7 +87,10 @@ function MemoryPage() {
         .eq("id", m.id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memories"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["memories"] });
+      emitDashboardEvent("memory");
+    },
   });
 
   const signOut = async () => {

@@ -20,6 +20,11 @@ import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import {
+  startResearchSession,
+  addDocumentToSession,
+  completeResearchSession,
+} from "@/lib/research-store";
 
 export const Route = createFileRoute("/_authenticated/documents")({
   head: () => ({ meta: [{ title: "LORD — Document Intelligence" }] }),
@@ -184,6 +189,13 @@ function DocsPage() {
     await navigator.clipboard.writeText(output);
   };
 
+  const saveResearch = () => {
+    if (!output) return;
+    const session = startResearchSession(filename || "Document analysis");
+    addDocumentToSession(session.id);
+    completeResearchSession(session.id);
+  };
+
   const downloadOutput = () => {
     if (!output) return;
     const blob = new Blob([output], { type: "text/plain;charset=utf-8" });
@@ -291,6 +303,13 @@ function DocsPage() {
               className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm text-muted-foreground disabled:opacity-40"
             >
               <Download className="h-4 w-4" /> Download
+            </button>
+            <button
+              onClick={saveResearch}
+              disabled={!output}
+              className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm text-primary disabled:opacity-40"
+            >
+              <BookOpen className="h-4 w-4" /> Save to Research
             </button>
           </div>
           <div className="mt-4 min-h-[320px] whitespace-pre-wrap rounded-md border border-border/40 bg-background/30 p-3 text-sm">

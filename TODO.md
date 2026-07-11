@@ -1,37 +1,19 @@
-# TODO — AI Calendar & Personal Planner (Lord Timeline)
+# TODO — Fix all issues
 
-## Phase 1 — Foundation
-- [ ] Create Supabase migration: `events` table with RLS (user-owned)
-- [ ] Add `src/lib/calendar-service.ts` for CRUD (list/create/update/delete) using Supabase
-- [ ] Build `/_authenticated/calendar` route (Lord Timeline UI)
-  - [ ] Header + Today/Tomorrow/Upcoming/Completed sections
-  - [ ] Views: Month + Agenda (Week/Day derived/minimum viable first)
-  - [ ] `+ New Event` modal
-  - [ ] Full CRUD for events (create/edit/delete/complete)
-  - [ ] Event fields: title, description, date, start/end, location, priority, category, reminder, repeat, color, notes
-  - [ ] Search + filtering by category/status
-- [ ] Add Calendar icon button to chat input
-  - [ ] `src/components/lord/chat/input/ChatInput.tsx`: 📅 icon beside model selector
-  - [ ] Wire open-calendar handler from chat page
-- [ ] Heuristic AI event detection + confirmation in chat
-  - [ ] Intercept outgoing user text in `src/routes/_authenticated/chat.tsx`
-  - [ ] Detect scheduling intent -> proposed event(s)
-  - [ ] Always ask for confirmation before saving
-  - [ ] YES -> create via calendar-service
-  - [ ] NO -> ignore
-  - [ ] EDIT -> open EventForm prefilled (first MVP: edit only first detected event)
-- [ ] Modular architecture
-  - [ ] UI independent of AI logic (AI utilities only produce proposals)
-  - [ ] AI uses calendar-service for persistence
-  - [ ] Add extensibility metadata: createdBy/source/aiConfidence/preparationStatus
-- [ ] Basic polish
-  - [ ] Dark theme parity with LordAI
-  - [ ] Responsive layout
+## Phase 1 — Calendar single source of truth
+- [x] `CalendarProvider` owns all calendar state (backed by localStorage) — single writer
+- [x] `src/routes/_authenticated/calendar.tsx` uses `useCalendar()` instead of duplicate localStorage
+- [x] `src/components/lord/CalendarModal.tsx` uses `useCalendar()` instead of duplicate localStorage
+- [x] `src/components/lord/DailyBriefing.tsx` reads events via `useCalendar()`
 
-## Phase 2 — AI Assistant (planned after Phase 1)
-- [ ] Replace heuristics with LLM-powered extraction
-- [ ] Proactive preparation workflows (study plans, checklists, prep)
-- [ ] Surface upcoming events naturally in chat
-- [ ] Notification support (web first)
-- [ ] Google/Outlook/Apple/ICS sync adapters (stubs first)
+## Phase 2 — Chat → Calendar confirmation flow
+- [x] In `src/routes/_authenticated/chat.tsx`, when `detectCalendarEvent()` returns a high-confidence event, show a YES/NO prompt
+- [x] On YES, persist detected event via `useCalendar().addEvent(createEventFromDetection(...))`
+- [x] On NO, discard and clear `pendingEvent`
+- [x] Message is never silently dropped — it is always sent to the AI after the decision
+
+## Phase 3 — Verification
+- [x] Run `npm run build` (passes)
+- [x] Run `tsc --noEmit` (passes)
+- [ ] Run `npm run lint`
 

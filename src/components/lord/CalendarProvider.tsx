@@ -1,7 +1,12 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { type CalendarEvent, uid } from "@/lib/lord-store";
-import { detectCalendarEvent, createEventFromDetection, type DetectedEvent } from "@/lib/calendar-event-detector";
+import {
+  detectCalendarEvent,
+  createEventFromDetection,
+  type DetectedEvent,
+} from "@/lib/calendar-event-detector";
+import { emitDashboardEvent } from "@/lib/dashboard-service";
 import { format, parseISO, isSameDay, isAfter, isBefore, addDays, addHours } from "date-fns";
 
 interface CalendarContextType {
@@ -23,32 +28,38 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const addEvent = (event: CalendarEvent) => {
     setEvents([event, ...events]);
+    emitDashboardEvent("calendar");
   };
 
   const updateEvent = (id: string, updates: Partial<CalendarEvent>) => {
-    setEvents(events.map(e => e.id === id ? { ...e, ...updates, updatedAt: Date.now() } : e));
+    setEvents(events.map((e) => (e.id === id ? { ...e, ...updates, updatedAt: Date.now() } : e)));
+    emitDashboardEvent("calendar");
   };
 
   const deleteEvent = (id: string) => {
-    setEvents(events.filter(e => e.id !== id));
+    setEvents(events.filter((e) => e.id !== id));
+    emitDashboardEvent("calendar");
   };
 
   const toggleComplete = (id: string) => {
-    setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+    setEvents(events.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+    emitDashboardEvent("calendar");
   };
 
   const getUpcomingEvents = (days = 7) => {
     const today = new Date();
     const future = addDays(today, days);
-    return events.filter(e => {
-      const eventDate = parseISO(e.date);
-      return isAfter(eventDate, today) && isBefore(eventDate, future) && !e.completed;
-    }).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+    return events
+      .filter((e) => {
+        const eventDate = parseISO(e.date);
+        return isAfter(eventDate, today) && isBefore(eventDate, future) && !e.completed;
+      })
+      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
   };
 
   const getTodaysEvents = () => {
     const today = new Date();
-    return events.filter(e => {
+    return events.filter((e) => {
       const eventDate = parseISO(e.date);
       return isSameDay(eventDate, today) && !e.completed;
     });
@@ -56,7 +67,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const getTomorrowEvents = () => {
     const tomorrow = addDays(new Date(), 1);
-    return events.filter(e => {
+    return events.filter((e) => {
       const eventDate = parseISO(e.date);
       return isSameDay(eventDate, tomorrow) && !e.completed;
     });

@@ -14,6 +14,8 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiOpenrouterTestRouteImport } from './routes/api/openrouter-test'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedVoiceRouteImport } from './routes/_authenticated/voice'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
@@ -47,6 +49,16 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenrouterTestRoute = ApiOpenrouterTestRouteImport.update({
+  id: '/api/openrouter-test',
+  path: '/api/openrouter-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -116,6 +128,8 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRoute
   '/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/openrouter-test': typeof ApiOpenrouterTestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -132,6 +146,8 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRoute
   '/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/openrouter-test': typeof ApiOpenrouterTestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -150,6 +166,8 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/openrouter-test': typeof ApiOpenrouterTestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -168,6 +186,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/voice'
     | '/api/chat'
+    | '/api/health'
+    | '/api/openrouter-test'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -184,6 +204,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/voice'
     | '/api/chat'
+    | '/api/health'
+    | '/api/openrouter-test'
   id:
     | '__root__'
     | '/'
@@ -201,6 +223,8 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/voice'
     | '/api/chat'
+    | '/api/health'
+    | '/api/openrouter-test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -210,6 +234,8 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiOpenrouterTestRoute: typeof ApiOpenrouterTestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -247,6 +273,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-test': {
+      id: '/api/openrouter-test'
+      path: '/api/openrouter-test'
+      fullPath: '/api/openrouter-test'
+      preLoaderRoute: typeof ApiOpenrouterTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -356,6 +396,8 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiOpenrouterTestRoute: ApiOpenrouterTestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -25,7 +25,7 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { useCalendar } from "@/components/lord/CalendarProvider";
 import { type CalendarEvent, type EventCategory, type EventPriority, uid } from "@/lib/lord-store";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 
@@ -70,7 +70,7 @@ interface CalendarModalProps {
 }
 
 export function CalendarModal({ open, onClose }: CalendarModalProps) {
-  const [events, setEvents] = usePersistedState<CalendarEvent[]>("calendar-events", []);
+  const { events, addEvent, updateEvent, deleteEvent, toggleComplete } = useCalendar();
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">("month");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewEvent, setShowNewEvent] = useState(false);
@@ -139,9 +139,9 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
     };
 
     if (editingEvent) {
-      setEvents(events.map(e => e.id === editingEvent.id ? event : e));
+      updateEvent(editingEvent.id, event);
     } else {
-      setEvents([event, ...events]);
+      addEvent(event);
     }
     
     setShowNewEvent(false);
@@ -150,11 +150,11 @@ export function CalendarModal({ open, onClose }: CalendarModalProps) {
   };
 
   const handleDeleteEvent = (id: string) => {
-    setEvents(events.filter(e => e.id !== id));
+    deleteEvent(id);
   };
 
   const handleToggleComplete = (id: string) => {
-    setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+    toggleComplete(id);
   };
 
   const openEditEvent = (event: CalendarEvent) => {

@@ -13,7 +13,11 @@ import { ChatInput } from "@/components/lord/chat/input/ChatInput";
 import { ChatErrorBoundary } from "@/components/lord/ChatErrorBoundary";
 import type { ChatSubmitPayload } from "@/components/lord/chat/input/types";
 import { getToolDef } from "@/components/lord/chat/input/tools";
-import { detectCalendarEvent, createEventFromDetection, type DetectedEvent } from "@/lib/calendar-event-detector";
+import {
+  detectCalendarEvent,
+  createEventFromDetection,
+  type DetectedEvent,
+} from "@/lib/calendar-event-detector";
 import { useCalendar } from "@/components/lord/CalendarProvider";
 import { DEFAULT_MODE, type LordMode } from "@/lib/modes";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -21,6 +25,7 @@ import { tokenUsageStore, type TokenUsageEvent } from "@/lib/token-usage-store";
 import { supabase } from "@/integrations/supabase/client";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { getSupabaseAuthHeaders } from "@/lib/authenticated-fetch";
+import { emitDashboardEvent } from "@/lib/dashboard-service";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/chat")({
@@ -49,6 +54,35 @@ interface MessageRow {
   created_at: string;
 }
 
+// Stable empty references so that a `useQuery` result with no data does NOT
+// produce a brand-new array on every render. Returning a fresh `[]` default
+// each render would make downstream `useMemo`/effects see a new identity every
+// render and, combined with `setMessages`, cause an infinite update loop
+// (React error #185: "Maximum update depth exceeded").
+const EMPTY_CONVERSATIONS: ConversationRow[] = [];
+const EMPTY_STORED_MESSAGES: MessageRow[] = [];
+
+function getMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((p) => p.type === "text")
+    .map((p) => (p as { text: string }).text)
+    .join("");
+}
+
+// Structural comparison used to avoid redundant `setMessages` calls. Each
+// `setMessages` clones the array and notifies subscribers, so re-applying an
+// identical message list would still force a render; skipping it entirely keeps
+// state updates bounded and prevents render loops.
+function messagesEqual(a: UIMessage[], b: UIMessage[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].role !== b[i].role) return false;
+    if (getMessageText(a[i]) !== getMessageText(b[i])) return false;
+  }
+  return true;
+}
+
 function ChatPage() {
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
@@ -65,7 +99,12 @@ function ChatPage() {
     conversationId: string;
     message: UIMessage;
   } | null>(null);
-  const [pendingEvent, setPendingEvent] = useState<DetectedEvent | null>(null);
+  const [pendingEvent, setPendingEvent] = useState<{
+    detected: DetectedEvent;
+    userMessage: UIMessage;
+    conversationId: string;
+    isNewConversation: boolean;
+  } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
   const modeRef = useRef<LordMode>(mode);
@@ -81,7 +120,7 @@ function ChatPage() {
   };
 
   // Conversations list (Supabase)
-  const { data: conversations = [] } = useQuery({
+  const { data: conversationsData } = useQuery({
     queryKey: ["conversations", user.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -92,9 +131,10 @@ function ChatPage() {
       return data as ConversationRow[];
     },
   });
+  const conversations = conversationsData ?? EMPTY_CONVERSATIONS;
 
   // Messages for active conversation
-  const { data: storedMessages = [], error: storedMessagesError } = useQuery({
+  const { data: storedMessagesData, error: storedMessagesError } = useQuery({
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
     queryFn: async () => {
@@ -107,6 +147,9 @@ function ChatPage() {
       return data as MessageRow[];
     },
   });
+  // Fall back to a *stable* empty array (not a fresh `[]` each render) so that
+  // `initialMessages` keeps a stable identity while the query has no data.
+  const storedMessages = storedMessagesData ?? EMPTY_STORED_MESSAGES;
 
   const initialMessages = useMemo<UIMessage[]>(
     () =>
@@ -250,6 +293,7 @@ function ChatPage() {
     setConversationId(data.id);
     activeConversationIdRef.current = data.id;
     qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+    emitDashboardEvent("conversations");
     return data.id;
   };
 
@@ -281,6 +325,7 @@ function ChatPage() {
     setPersistenceError(null);
     setSavingMessage(false);
     setPendingInitialSend(null);
+    setPendingEvent(null);
     setConversationId(null);
     activeConversationIdRef.current = null;
     setMessages([]);
@@ -289,9 +334,31 @@ function ChatPage() {
   const loadConversation = (id: string) => {
     setPersistenceError(null);
     setPendingInitialSend(null);
+    setPendingEvent(null);
     setConversationId(id);
     activeConversationIdRef.current = id;
     setMessages([]); // will be replaced by initialMessages once query loads
+  };
+
+  // Send a user message to the AI, choosing the right path for new vs. existing
+  // conversations. The user message is already persisted in Supabase at this point.
+  const sendToAI = (message: UIMessage, conversationId: string, isNew: boolean) => {
+    if (isNew) {
+      setPendingInitialSend({ conversationId, message });
+    } else {
+      void sendMessage(message).finally(() => setSavingMessage(false));
+    }
+  };
+
+  // Handle the YES/NO confirmation for an AI-detected calendar event.
+  const resolvePendingEvent = (accept: boolean) => {
+    if (!pendingEvent) return;
+    const { detected, userMessage, conversationId, isNewConversation } = pendingEvent;
+    if (accept) {
+      calendar.addEvent(createEventFromDetection(detected));
+    }
+    setPendingEvent(null);
+    sendToAI(userMessage, conversationId, isNewConversation);
   };
 
   useEffect(() => {
@@ -302,7 +369,11 @@ function ChatPage() {
 
   useEffect(() => {
     if (!conversationId || pendingInitialSend || busy) return;
-    setMessages(initialMessages);
+    // Only sync when the loaded messages actually differ from what the chat
+    // already holds. `setMessages` always clones + notifies subscribers, so an
+    // unconditional call here (with an unstable `initialMessages` identity)
+    // would retrigger this effect and loop forever (React #185).
+    setMessages((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
   }, [busy, conversationId, initialMessages, pendingInitialSend, setMessages]);
 
   useEffect(() => {
@@ -437,23 +508,15 @@ function ChatPage() {
       }
       qc.invalidateQueries({ queryKey: ["conversations", user.id] });
 
-      // Detect calendar event in user message
+      // Detect calendar event in user message — confirm before persisting.
       const detected = detectCalendarEvent(text);
       if (detected && detected.confidence > 0.5) {
-        setPendingEvent(detected);
-      } else if (isNewConversation) {
-        setPendingInitialSend({ conversationId: convId, message: userMessage });
-      } else {
-        console.info(
-          JSON.stringify({
-            event: "chat_stream_start",
-            conversationId: convId,
-            mode,
-            messageId: userMsgId,
-          }),
-        );
-        void sendMessage(userMessage).finally(() => setSavingMessage(false));
+        setPendingEvent({ detected, userMessage, conversationId: convId, isNewConversation });
+        setSavingMessage(false);
+        return;
       }
+
+      sendToAI(userMessage, convId, isNewConversation);
     } catch (err) {
       console.error(
         JSON.stringify({
@@ -564,9 +627,7 @@ function ChatPage() {
               <div
                 className={cn(
                   "min-w-0",
-                  m.role === "user"
-                    ? "max-w-[90%] md:max-w-[78%]"
-                    : "max-w-[100%] md:max-w-[90%]",
+                  m.role === "user" ? "max-w-[90%] md:max-w-[78%]" : "max-w-[100%] md:max-w-[90%]",
                 )}
               >
                 {m.role === "user" ? (
@@ -643,11 +704,17 @@ function ChatPage() {
             className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-6"
           >
             <div className="mx-auto flex w-full max-w-[860px] flex-col">
-              <ChatErrorBoundary>
-                {renderMessages()}
-              </ChatErrorBoundary>
+              <ChatErrorBoundary>{renderMessages()}</ChatErrorBoundary>
             </div>
           </div>
+
+          {pendingEvent && (
+            <EventConfirmPrompt
+              detected={pendingEvent.detected}
+              onConfirm={() => resolvePendingEvent(true)}
+              onDecline={() => resolvePendingEvent(false)}
+            />
+          )}
 
           <div className="shrink-0 px-3 py-3 md:px-4">
             <div className="mx-auto w-full max-w-[860px]">
@@ -659,7 +726,10 @@ function ChatPage() {
                 streaming={streaming}
                 disabled={savingMessage}
                 mode={mode}
-                onModeChange={setMode}
+                onModeChange={(m) => {
+                  setMode(m);
+                  emitDashboardEvent("ai");
+                }}
               />
             </div>
           </div>
@@ -751,6 +821,47 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
             {s}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function EventConfirmPrompt({
+  detected,
+  onConfirm,
+  onDecline,
+}: {
+  detected: DetectedEvent;
+  onConfirm: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="mx-auto mt-3 w-full max-w-[860px]">
+      <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">Add this to your calendar?</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {detected.title}
+              {detected.date ? ` · ${detected.date}` : ""}
+              {detected.startTime ? ` at ${detected.startTime}` : ""}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={onConfirm}
+              className="rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-background transition hover:bg-cyan-300"
+            >
+              Yes, add
+            </button>
+            <button
+              onClick={onDecline}
+              className="rounded-md border border-border/60 bg-background/40 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              No
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

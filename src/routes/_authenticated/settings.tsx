@@ -11,6 +11,7 @@ import { getUserSettings, updateUserSettings } from "@/lib/user-settings.functio
 import { supabase } from "@/integrations/supabase/client";
 import { useTokenUsage } from "@/lib/token-usage-store";
 import { getModelDef } from "@/components/lord/chat/input/models";
+import { emitDashboardEvent } from "@/lib/dashboard-service";
 import { cn } from "@/lib/utils";
 import {
   Loader2,
@@ -273,7 +274,10 @@ function SettingsPage() {
   const themeMutation = useMutation({
     mutationFn: (newTheme: string) =>
       saveSettings({ data: { theme: newTheme as "dark" | "light" } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["user_settings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["user_settings"] });
+      emitDashboardEvent("all");
+    },
   });
 
   const addMemoryMutation = useMutation({

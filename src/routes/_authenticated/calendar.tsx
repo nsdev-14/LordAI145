@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { Plus, Check, Trash2, Edit, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, Tag, AlertCircle, X } from "lucide-react";
 import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { useCalendar } from "@/components/lord/CalendarProvider";
 import { type CalendarEvent, type EventCategory, type EventPriority, uid } from "@/lib/lord-store";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths } from "date-fns";
@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_authenticated/calendar")({
 });
 
 function CalendarPage() {
-  const [events, setEvents] = usePersistedState<CalendarEvent[]>("calendar-events", []);
+  const { events, addEvent, updateEvent, deleteEvent, toggleComplete } = useCalendar();
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">("month");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewEvent, setShowNewEvent] = useState(false);
@@ -106,9 +106,9 @@ function CalendarPage() {
     };
 
     if (editingEvent) {
-      setEvents(events.map(e => e.id === editingEvent.id ? event : e));
+      updateEvent(editingEvent.id, event);
     } else {
-      setEvents([event, ...events]);
+      addEvent(event);
     }
     
     setShowNewEvent(false);
@@ -117,11 +117,11 @@ function CalendarPage() {
   };
 
   const handleDeleteEvent = (id: string) => {
-    setEvents(events.filter(e => e.id !== id));
+    deleteEvent(id);
   };
 
   const handleToggleComplete = (id: string) => {
-    setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+    toggleComplete(id);
   };
 
   const openEditEvent = (event: CalendarEvent) => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, Clock, X, BookOpen, Briefcase, Dumbbell, Cake, CreditCard, Plane, Users, Heart, Target, MoreHorizontal } from "lucide-react";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { useCalendar } from "@/components/lord/CalendarProvider";
 import { type CalendarEvent, type EventCategory } from "@/lib/lord-store";
 import { format, parseISO, isSameDay, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ const CATEGORY_COLORS: Record<EventCategory, string> = {
 };
 
 export function DailyBriefing() {
-  const [events] = usePersistedState<CalendarEvent[]>("calendar-events", []);
+  const { events } = useCalendar();
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 

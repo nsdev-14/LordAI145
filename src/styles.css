@@ -361,6 +361,23 @@ body {
   animation: dock-breathe 3.5s ease-in-out infinite;
 }
 
+@keyframes dashboard-pulse {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.82 0.18 210 / 0);
+  }
+  30% {
+    box-shadow: 0 0 0 3px oklch(0.82 0.18 210 / 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.82 0.18 210 / 0);
+  }
+}
+
+.dashboard-pulse {
+  animation: dashboard-pulse 0.9s ease-out;
+  border-radius: 0.5rem;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

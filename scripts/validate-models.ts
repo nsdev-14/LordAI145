@@ -93,16 +93,16 @@ async function main() {
   // Models from lord-config.ts and model-registry.ts
   const configuredModels = [
     // From lord-config.ts
-    "google/gemma-2-9b-it:free",
-    "meta-llama/llama-3.1-70b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-26b-a4b-it:free",
     "openai/gpt-4o-mini",
     "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-sonnet-4",
     "deepseek/deepseek-chat",
     "qwen/qwen-2.5-coder-32b-instruct",
     "google/gemini-2.5-flash",
     // From model-registry.ts
-    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-haiku-4.5",
     "google/gemini-2.5-pro",
   ];
 

@@ -4,19 +4,19 @@
 // Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
   fast: [
-    "google/gemma-2-9b-it:free",
-    "meta-llama/llama-3.1-70b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-26b-a4b-it:free",
   ],
 
   balanced: [
     "openai/gpt-4o-mini",
-    "google/gemma-2-9b-it:free",
-    "meta-llama/llama-3.1-70b-instruct:free",
     "openai/gpt-4o",
+    "deepseek/deepseek-chat",
+    "google/gemini-2.5-flash",
   ],
 
   reasoning: [
-    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-sonnet-4",
     "openai/gpt-4o",
     "deepseek/deepseek-chat",
   ],
@@ -29,12 +29,12 @@ export const LORD_MODELS = {
 
   creative: [
     "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-sonnet-4",
     "google/gemini-2.5-flash",
   ],
 
   // On-device / local-class model used when the user picks "Local".
-  local: ["meta-llama/llama-3.1-70b-instruct:free"],
+  local: ["meta-llama/llama-3.3-70b-instruct:free"],
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
@@ -60,6 +60,83 @@ export function buildCandidates(mode: LordMode, explicitModelId?: string): strin
 
 // Backwards-compatible wrapper
 export const getLordModelCandidates = buildCandidates;
+
+// Typed, structured client error produced by the OpenRouter fetch wrapper so
+// classification never has to guess from a free-form message. It is attached to
+// the thrown Error via a symbol marker so it survives SDK error wrapping
+// (the AI SDK re-throws our error as `cause`), and its message also carries a
+// regex-matchable signature as a fallback.
+export type OpenRouterClientErrorKind =
+  | "network"
+  | "abort"
+  | "timeout"
+  | "parse"
+  | "api";
+
+export const OPENROUTER_CLIENT_ERROR = Symbol.for("lord.openrouter.client-error");
+
+export class OpenRouterClientError extends Error {
+  readonly kind: OpenRouterClientErrorKind;
+  readonly status?: number;
+  readonly body?: string;
+  constructor(
+    message: string,
+    opts: { kind: OpenRouterClientErrorKind; status?: number; body?: string },
+  ) {
+    super(message);
+    this.name = "OpenRouterClientError";
+    this.kind = opts.kind;
+    this.status = opts.status;
+    this.body = opts.body;
+    (this as unknown as Record<symbol, unknown>)[OPENROUTER_CLIENT_ERROR] = {
+      kind: opts.kind,
+      status: opts.status,
+      body: opts.body,
+    };
+  }
+}
+
+// Extract a human-readable message from a raw OpenRouter error body (JSON or text).
+function extractMessageFromBody(body?: string): string | undefined {
+  if (!body) return undefined;
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed === "object") {
+      return (
+        parsed?.error?.message ??
+        parsed?.message ??
+        (typeof parsed?.error === "string" ? parsed.error : undefined)
+      );
+    }
+  } catch {
+    return body.slice(0, 500);
+  }
+  return undefined;
+}
+
+// Walk the error and its `cause` chain looking for our structured marker.
+// Returns null when the error did not originate from our fetch wrapper.
+function findClientErrorMark(error: unknown): {
+  kind: OpenRouterClientErrorKind;
+  status?: number;
+  body?: string;
+} | null {
+  const seen = new Set<unknown>();
+  let cur: unknown = error;
+  while (cur && typeof cur === "object" && !seen.has(cur)) {
+    seen.add(cur);
+    const marker = (cur as Record<symbol, unknown>)[OPENROUTER_CLIENT_ERROR];
+    if (marker && typeof marker === "object") {
+      return marker as {
+        kind: OpenRouterClientErrorKind;
+        status?: number;
+        body?: string;
+      };
+    }
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return null;
+}
 
 // Type-safe error reasons for better IDE support and refactoring safety
 export type ModelErrorReason =
@@ -135,6 +212,39 @@ function extractProviderDetails(error: unknown): { providerMessage?: string; err
 // the backend to fall through to the next candidate; non-retryable errors stop
 // immediately (the failure is the caller's responsibility, e.g. a bad key).
 export function classifyModelError(error: unknown): ModelErrorClassification {
+  // 1) Structured client errors from our fetch wrapper carry the real reason,
+  //    status, and (for HTTP errors) the full provider body. Prefer these so we
+  //    never collapse to a generic "unknown" when we already know what failed.
+  const clientErr = findClientErrorMark(error);
+  if (clientErr) {
+    if (clientErr.kind === "api" && typeof clientErr.status === "number") {
+      const status = clientErr.status;
+      const providerMessage = extractMessageFromBody(clientErr.body);
+      if (status === 401 || status === 403)
+        return { retryable: false, reason: "invalid_api_key", status, providerMessage };
+      if (status === 400 || status === 422)
+        return { retryable: false, reason: "malformed_request", status, providerMessage };
+      if (status === 404 || status === 410)
+        return { retryable: true, reason: "model_unavailable", status, providerMessage };
+      if (status === 402)
+        return { retryable: true, reason: "insufficient_credits", status, providerMessage };
+      if (status === 429)
+        return { retryable: true, reason: "rate_limit", status, providerMessage };
+      if (status >= 500)
+        return { retryable: true, reason: "provider_error", status, providerMessage };
+      return { retryable: true, reason: "provider_error", status, providerMessage };
+    }
+    // network / abort / timeout / parse — always retryable, with real detail.
+    const message = error instanceof Error ? error.message : String(error);
+    const providerMessage = `OpenRouter client ${clientErr.kind}: ${message}`;
+    return {
+      retryable: true,
+      reason: "provider_error",
+      status: 0,
+      providerMessage,
+    };
+  }
+
   const raw =
     error instanceof Error
       ? error.message
@@ -171,8 +281,15 @@ export function classifyModelError(error: unknown): ModelErrorClassification {
     return { retryable: true, reason: "provider_error", status: status ?? 502, ...providerDetails };
   }
 
-  // Unknown errors are treated as retryable so fallback gets a chance.
-  return { retryable: true, reason: "unknown", status, ...providerDetails };
+  // Unknown errors are treated as retryable so fallback gets a chance, but we
+  // still surface the real message instead of a blank "Unknown error".
+  return {
+    retryable: true,
+    reason: "unknown",
+    status,
+    providerMessage: providerDetails.providerMessage ?? (raw.trim() || "Unclassified OpenRouter error"),
+    ...providerDetails,
+  };
 }
 
 export const LORD_SYSTEM_PROMPT = `You are LORD, the autonomous AI of this application.

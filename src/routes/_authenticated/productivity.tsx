@@ -5,6 +5,7 @@ import { AppShell } from "@/components/lord/AppShell";
 import { HudPanel } from "@/components/lord/HudPanel";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { uid, type Task, type Goal } from "@/lib/lord-store";
+import { useTasks, addTask, toggleTask, removeTask } from "@/lib/task-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/productivity")({
@@ -13,23 +14,19 @@ export const Route = createFileRoute("/_authenticated/productivity")({
 });
 
 function ProductivityPage() {
-  const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
+  const tasks = useTasks();
   const [goals, setGoals] = usePersistedState<Goal[]>("goals", []);
   const [taskInput, setTaskInput] = useState("");
   const [priority, setPriority] = useState<Task["priority"]>("med");
   const [goalInput, setGoalInput] = useState("");
 
-  const addTask = () => {
+  const addLocalTask = () => {
     if (!taskInput.trim()) return;
-    setTasks([
-      { id: uid(), title: taskInput.trim(), done: false, priority, createdAt: Date.now() },
-      ...tasks,
-    ]);
+    addTask({ title: taskInput.trim(), priority });
     setTaskInput("");
   };
-  const toggle = (id: string) =>
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  const remove = (id: string) => setTasks(tasks.filter((t) => t.id !== id));
+  const toggle = (id: string) => toggleTask(id);
+  const remove = (id: string) => removeTask(id);
 
   const addGoal = () => {
     if (!goalInput.trim()) return;
@@ -61,7 +58,7 @@ function ProductivityPage() {
             <input
               value={taskInput}
               onChange={(e) => setTaskInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTask()}
+              onKeyDown={(e) => e.key === "Enter" && addLocalTask()}
               placeholder="New task…"
               className="min-h-11 flex-1 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-base outline-none focus:border-primary sm:text-sm"
             />
@@ -75,7 +72,7 @@ function ProductivityPage() {
               <option value="high">High</option>
             </select>
             <button
-              onClick={addTask}
+              onClick={addLocalTask}
               className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_18px_var(--hud)]"
             >
               <Plus className="h-4 w-4" /> Add

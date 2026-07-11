@@ -41,11 +41,42 @@ class MonitoringService {
 
   private listeners: Set<(metrics: SystemMetrics, events: AppEvent[]) => void> = new Set();
 
+  private lastSuccessAt: number | null = null;
+  private failedRequests = 0;
+  private rateLimited = false;
+
   constructor() {
     if (typeof window !== "undefined") {
       this.setupGlobalListeners();
       this.startUptimeTracker();
     }
+  }
+
+  public getStartTime(): number {
+    return this.startTime;
+  }
+
+  public getLastSuccessAt(): number | null {
+    return this.lastSuccessAt;
+  }
+
+  public getFailedRequests(): number {
+    return this.failedRequests;
+  }
+
+  public isRateLimited(): boolean {
+    return this.rateLimited;
+  }
+
+  public markSuccess() {
+    this.lastSuccessAt = Date.now();
+    this.notify();
+  }
+
+  public markFailure(rateLimited = false) {
+    this.failedRequests++;
+    if (rateLimited) this.rateLimited = true;
+    this.notify();
   }
 
   private setupGlobalListeners() {

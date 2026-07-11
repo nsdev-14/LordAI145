@@ -49,8 +49,8 @@ export function apiErrorResponse(
         message,
         requestId,
         ...(extra?.attempts && { attempts: extra.attempts }),
-      } satisfies ApiErrorBody,
-    },
+      },
+    } satisfies ApiErrorBody,
     {
       status,
       headers: { "Cache-Control": "no-store" },
