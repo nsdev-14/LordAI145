@@ -24,7 +24,7 @@ const OPENROUTER_TIMEOUT_MS = 45_000;
 // unavailable models, timeouts, network errors) surface here, letting the
 // backend transparently try the next candidate. Only after a candidate passes
 // the probe do we open the real stream to the user.
-const PROBE_MAX_OUTPUT_TOKENS = 32;
+const PROBE_MAX_OUTPUT_TOKENS = 1;
 const PROBE_TIMEOUT_MS = 20_000;
 const REASON_LABELS: Record<string, string> = {
   invalid_api_key: "Invalid API key",

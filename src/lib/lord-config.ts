@@ -3,36 +3,38 @@
 // first, and the backend automatically falls back through the rest.
 // Models validated against OpenRouter catalog (https://openrouter.ai/models)
 export const LORD_MODELS = {
-  fast: [
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-    "deepseek/deepseek-r1-0528:free",
-  ],
+fast: [
+  "google/gemma-3n-e4b-it:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+],
 
-  balanced: [
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-    "deepseek/deepseek-r1-0528:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-  ],
+balanced: [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+  "google/gemma-3n-e4b-it:free",
+],
 
-  reasoning: [
-    "deepseek/deepseek-r1-0528:free",
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-  ],
+reasoning: [
+  "openai/gpt-oss-120b:free",
+  "deepseek/deepseek-r1-0528:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+],
 
-  coding: [
-    "qwen/qwen2.5-coder-32b-instruct:free",
-    "deepseek/deepseek-r1-0528:free",
-  ],
+coding: [
+  "qwen/qwen3-coder:free",
+  "qwen/qwen2.5-coder-32b-instruct:free",
+  "deepseek/deepseek-r1-0528:free",
+],
 
-  creative: [
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-  ],
+creative: [
+  "nousresearch/hermes-3-llama-3.1-405b:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+],
 
-  local: [
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-  ],
-
+local: [
+  "ollama/llama3.2",
+]
 } as const;
 
 export type LordMode = keyof typeof LORD_MODELS;
