@@ -11,8 +11,10 @@ import { cn } from "@/lib/utils";
  *
  * Kept inline (no extra dep) and safe — never uses dangerouslySetInnerHTML.
  */
-export function RichMessage({ text }: { text: string }) {
-  const blocks = splitFencedCode(text);
+export function RichMessage({ text }: { text: string | null | undefined }) {
+  // Defensive validation: handle null/undefined/empty text
+  const safeText = typeof text === "string" ? text : "";
+  const blocks = splitFencedCode(safeText);
   return (
     <div className="space-y-3">
       {blocks.map((block, i) =>
@@ -43,7 +45,9 @@ function splitFencedCode(input: string): Block[] {
 }
 
 function Paragraph({ text }: { text: string }) {
-  const paragraphs = text.split(/\n{2,}/);
+  // Defensive validation: handle null/undefined text
+  const safeText = typeof text === "string" ? text : "";
+  const paragraphs = safeText.split(/\n{2,}/);
   return (
     <div className="space-y-2 leading-relaxed">
       {paragraphs.map((p, i) => (
@@ -56,9 +60,11 @@ function Paragraph({ text }: { text: string }) {
 }
 
 function renderInline(text: string): React.ReactNode[] {
+  // Defensive validation: handle null/undefined text
+  const safeText = typeof text === "string" ? text : "";
   // Tokenize **bold** and `inline code` while preserving the rest.
   const re = /(\*\*[^*]+\*\*|`[^`\n]+`)/g;
-  const parts = text.split(re).filter(Boolean);
+  const parts = safeText.split(re).filter(Boolean);
   return parts.map((p, i) => {
     if (p.startsWith("**") && p.endsWith("**")) {
       return (
@@ -86,10 +92,13 @@ function renderInline(text: string): React.ReactNode[] {
 }
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  // Defensive validation: handle null/undefined code
+  const safeCode = typeof code === "string" ? code : "";
+  const safeLang = typeof lang === "string" ? lang : "code";
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(safeCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -99,7 +108,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   return (
     <div className="overflow-hidden rounded-lg border border-primary/30 bg-black/60 shadow-[0_0_18px_color-mix(in_oklab,var(--hud)_25%,transparent)]">
       <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary/80">
-        <span>{lang}</span>
+        <span>{safeLang}</span>
         <button
           onClick={copy}
           className={cn(
@@ -114,7 +123,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
         </button>
       </div>
       <pre className="overflow-x-auto p-3 text-xs leading-relaxed">
-        <code className="font-mono text-foreground/90">{code}</code>
+        <code className="font-mono text-foreground/90">{safeCode}</code>
       </pre>
     </div>
   );

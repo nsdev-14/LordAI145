@@ -30,7 +30,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/")));
+    event.respondWith(
+      fetch(request).catch(() =>
+        caches.match("/").then((cached) => cached ?? new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } }))
+      )
+    );
     return;
   }
 
@@ -38,11 +42,18 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then(
       (cached) =>
         cached ||
-        fetch(request).then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return response;
-        }),
+        fetch(request)
+          .then((response) => {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            return response;
+          })
+          .catch(() =>
+            new Response(JSON.stringify({ error: "Offline" }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            })
+          ),
     ),
   );
 });

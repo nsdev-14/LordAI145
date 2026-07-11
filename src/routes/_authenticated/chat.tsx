@@ -10,6 +10,7 @@ import { ChatSidebar } from "@/components/lord/ChatSidebar";
 import { RichMessage } from "@/components/lord/RichMessage";
 import { TypingDots } from "@/components/lord/TypingDots";
 import { ChatInput } from "@/components/lord/chat/input/ChatInput";
+import { ChatErrorBoundary } from "@/components/lord/ChatErrorBoundary";
 import type { ChatSubmitPayload } from "@/components/lord/chat/input/types";
 import { getToolDef } from "@/components/lord/chat/input/tools";
 import { detectCalendarEvent, createEventFromDetection, type DetectedEvent } from "@/lib/calendar-event-detector";
@@ -518,6 +519,97 @@ function ChatPage() {
 
   const streaming = status === "streaming" || status === "submitted";
 
+  // Defensive validation for messages array
+  const safeMessages = useMemo(() => {
+    if (!Array.isArray(messages)) {
+      console.error("Invalid messages: not an array", messages);
+      return [];
+    }
+    return messages.filter((m) => m && m.id && m.role && Array.isArray(m.parts));
+  }, [messages]);
+
+  // Render messages with error boundary
+  const renderMessages = () => {
+    if (safeMessages.length === 0) {
+      if (persistenceError || storedMessagesError) {
+        return (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+            {persistenceError ??
+              (storedMessagesError instanceof Error
+                ? storedMessagesError.message
+                : "Failed to load saved messages.")}
+          </div>
+        );
+      }
+      return <EmptyState onPick={(s) => setInput(s)} />;
+    }
+
+    return (
+      <ul className="flex w-full flex-col gap-4">
+        {safeMessages.map((m, idx) => {
+          const isLast = idx === safeMessages.length - 1;
+          const text = m.parts
+            .filter((p) => p.type === "text")
+            .map((p) => (p as { text: string }).text)
+            .join("");
+          return (
+            <li
+              key={m.id}
+              className={cn(
+                "flex min-w-0 gap-2 md:gap-3",
+                m.role === "user" ? "justify-end" : "justify-start",
+              )}
+            >
+              {m.role === "assistant" && <Avatar />}
+              <div
+                className={cn(
+                  "min-w-0",
+                  m.role === "user"
+                    ? "max-w-[90%] md:max-w-[78%]"
+                    : "max-w-[100%] md:max-w-[90%]",
+                )}
+              >
+                {m.role === "user" ? (
+                  <div className="whitespace-pre-wrap rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground md:px-4">
+                    {text}
+                  </div>
+                ) : (
+                  <div className="text-sm text-foreground">
+                    <RichMessage text={text} />
+                    <MessageActions
+                      text={text}
+                      canRegenerate={isLast && !busy}
+                      onRegenerate={regenerateLast}
+                    />
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+        {busy && (
+          <li className="flex items-center gap-3">
+            <Avatar />
+            <TypingDots />
+          </li>
+        )}
+        {error && (
+          <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+            {error.message || "The AI request failed. Please retry."}
+          </li>
+        )}
+        {(persistenceError || storedMessagesError) && (
+          <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+            {persistenceError ??
+              (storedMessagesError instanceof Error
+                ? storedMessagesError.message
+                : "Failed to load saved messages.")}
+          </li>
+        )}
+      </ul>
+    );
+  };
+
   return (
     <AppShell>
       <div className="flex h-[calc(100svh-9.25rem)] min-h-0 gap-3 md:h-[calc(100vh-7rem)] md:gap-4">
@@ -551,81 +643,9 @@ function ChatPage() {
             className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-6"
           >
             <div className="mx-auto flex w-full max-w-[860px] flex-col">
-              {messages.length === 0 ? (
-                persistenceError || storedMessagesError ? (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                    {persistenceError ??
-                      (storedMessagesError instanceof Error
-                        ? storedMessagesError.message
-                        : "Failed to load saved messages.")}
-                  </div>
-                ) : (
-                  <EmptyState onPick={(s) => setInput(s)} />
-                )
-              ) : (
-                <ul className="flex w-full flex-col gap-4">
-                  {messages.map((m, idx) => {
-                    const isLast = idx === messages.length - 1;
-                    const text = m.parts
-                      .filter((p) => p.type === "text")
-                      .map((p) => (p as { text: string }).text)
-                      .join("");
-                    return (
-                      <li
-                        key={m.id}
-                        className={cn(
-                          "flex min-w-0 gap-2 md:gap-3",
-                          m.role === "user" ? "justify-end" : "justify-start",
-                        )}
-                      >
-                        {m.role === "assistant" && <Avatar />}
-                        <div
-                          className={cn(
-                            "min-w-0",
-                            m.role === "user"
-                              ? "max-w-[90%] md:max-w-[78%]"
-                              : "max-w-[100%] md:max-w-[90%]",
-                          )}
-                        >
-                          {m.role === "user" ? (
-                            <div className="whitespace-pre-wrap rounded-[24px] bg-primary px-3 py-2.5 text-sm leading-relaxed text-primary-foreground md:px-4">
-                              {text}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-foreground">
-                              <RichMessage text={text} />
-                              <MessageActions
-                                text={text}
-                                canRegenerate={isLast && !busy}
-                                onRegenerate={regenerateLast}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                  {busy && (
-                    <li className="flex items-center gap-3">
-                      <Avatar />
-                      <TypingDots />
-                    </li>
-                  )}
-                  {error && (
-                    <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                      {error.message || "The AI request failed. Please retry."}
-                    </li>
-                  )}
-                  {(persistenceError || storedMessagesError) && (
-                    <li className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                      {persistenceError ??
-                        (storedMessagesError instanceof Error
-                          ? storedMessagesError.message
-                          : "Failed to load saved messages.")}
-                    </li>
-                  )}
-                </ul>
-              )}
+              <ChatErrorBoundary>
+                {renderMessages()}
+              </ChatErrorBoundary>
             </div>
           </div>
 
