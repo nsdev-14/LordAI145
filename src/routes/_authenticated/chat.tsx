@@ -44,6 +44,8 @@ interface ConversationRow {
   last_message_at: string;
 }
 
+
+
 interface MessageRow {
   id: string;
   conversation_id: string;
@@ -84,6 +86,9 @@ function messagesEqual(a: UIMessage[], b: UIMessage[]): boolean {
 }
 
 function ChatPage() {
+  useEffect(() => {
+  console.log("Chat page mounted");
+}, []);
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
