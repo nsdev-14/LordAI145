@@ -95,6 +95,15 @@ useEffect(() => {
   useEffect(() => {
   console.log("conversationId =", conversationId);
 }, [conversationId]);
+useEffect(() => {
+  console.log(
+    "messages:",
+    messages.map(m => ({
+      role: m.role,
+      text: getMessageText(m),
+    }))
+  );
+}, [messages]);
 }, []);
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
