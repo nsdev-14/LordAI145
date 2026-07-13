@@ -92,6 +92,9 @@ useEffect(() => {
   return () => {
     console.log("=== CHAT PAGE UNMOUNT ===");
   };
+  useEffect(() => {
+  console.log("conversationId =", conversationId);
+}, [conversationId]);
 }, []);
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
