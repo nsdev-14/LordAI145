@@ -202,6 +202,7 @@ useEffect(() => {
       const meta = (message?.metadata ?? null) as { tokenUsage?: TokenUsageEvent } | null;
       if (meta?.tokenUsage) {
         tokenUsageStore.record(meta.tokenUsage);
+        console.log("FINISH");
       }
       const activeConversationId = activeConversationIdRef.current;
       const requestMode = modeRef.current;
@@ -215,6 +216,8 @@ useEffect(() => {
           }),
         );
         return;
+        console.log("CHAT ERROR", error);
+
       }
 
       const assistantMessage = completed
@@ -343,6 +346,7 @@ useEffect(() => {
   });
 
   const startNewChat = () => {
+    console.trace("START NEW CHAT");
     setPersistenceError(null);
     setSavingMessage(false);
     setPendingInitialSend(null);
@@ -353,6 +357,7 @@ useEffect(() => {
   };
 
   const loadConversation = (id: string) => {
+    console.trace("LOAD CONVERSATION", id);
     setPersistenceError(null);
     setPendingInitialSend(null);
     setPendingEvent(null);
