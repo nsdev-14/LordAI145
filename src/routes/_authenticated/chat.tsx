@@ -393,15 +393,38 @@ useEffect(() => {
 
   const busy = savingMessage || status === "submitted" || status === "streaming";
 
-  useEffect(() => {
-    if (!conversationId || pendingInitialSend || busy) return;
-    // Only sync when the loaded messages actually differ from what the chat
-    // already holds. `setMessages` always clones + notifies subscribers, so an
-    // unconditional call here (with an unstable `initialMessages` identity)
-    // would retrigger this effect and loop forever (React #185).
-    setMessages((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
-  }, [busy, conversationId, initialMessages, pendingInitialSend, setMessages]);
+useEffect(() => {
+  console.log("===== SYNC EFFECT =====");
+  console.log("busy:", busy);
+  console.log("conversationId:", conversationId);
+  console.log("pendingInitialSend:", pendingInitialSend);
+  console.log("initialMessages:", initialMessages.length);
+  console.log("chatMessages:", messages.length);
 
+  if (!conversationId || pendingInitialSend || busy) {
+    console.log("SYNC EFFECT EXIT");
+    return;
+  }
+
+  setMessages((prev) => {
+    console.log(
+      "setMessages called",
+      "prev:", prev.length,
+      "next:", initialMessages.length
+    );
+
+    return messagesEqual(prev, initialMessages)
+      ? prev
+      : initialMessages;
+  });
+}, [
+  busy,
+  conversationId,
+  initialMessages,
+  pendingInitialSend,
+  setMessages,
+  messages,
+]);
   useEffect(() => {
     if (
       !pendingInitialSend ||
