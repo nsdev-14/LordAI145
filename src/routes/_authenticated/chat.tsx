@@ -86,8 +86,12 @@ function messagesEqual(a: UIMessage[], b: UIMessage[]): boolean {
 }
 
 function ChatPage() {
-  useEffect(() => {
-  console.log("Chat page mounted");
+useEffect(() => {
+  console.log("=== CHAT PAGE MOUNT ===");
+
+  return () => {
+    console.log("=== CHAT PAGE UNMOUNT ===");
+  };
 }, []);
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
