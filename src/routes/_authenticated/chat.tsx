@@ -86,25 +86,6 @@ function messagesEqual(a: UIMessage[], b: UIMessage[]): boolean {
 }
 
 function ChatPage() {
-useEffect(() => {
-  console.log("=== CHAT PAGE MOUNT ===");
-
-  return () => {
-    console.log("=== CHAT PAGE UNMOUNT ===");
-  };
-  useEffect(() => {
-  console.log("conversationId =", conversationId);
-}, [conversationId]);
-useEffect(() => {
-  console.log(
-    "messages:",
-    messages.map(m => ({
-      role: m.role,
-      text: getMessageText(m),
-    }))
-  );
-}, [messages]);
-}, []);
   const qc = useQueryClient();
   const { user } = Route.useRouteContext();
   const { metrics, currentRoute, activeWorkflow, history } = useAppContext();
@@ -128,8 +109,8 @@ useEffect(() => {
   } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
+  const justLoadedRef = useRef(false);
   const modeRef = useRef<LordMode>(mode);
-  modeRef.current = mode;
   const requestBodyRef = useRef({
     mode,
     context: { page: currentRoute, workflow: activeWorkflow, metrics, history },
@@ -155,7 +136,11 @@ useEffect(() => {
   const conversations = conversationsData ?? EMPTY_CONVERSATIONS;
 
   // Messages for active conversation
-  const { data: storedMessagesData, error: storedMessagesError } = useQuery({
+  const {
+    data: storedMessagesData,
+    error: storedMessagesError,
+    isFetching: messagesFetching,
+  } = useQuery({
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
     queryFn: async () => {
@@ -202,7 +187,6 @@ useEffect(() => {
       const meta = (message?.metadata ?? null) as { tokenUsage?: TokenUsageEvent } | null;
       if (meta?.tokenUsage) {
         tokenUsageStore.record(meta.tokenUsage);
-        console.log("FINISH");
       }
       const activeConversationId = activeConversationIdRef.current;
       const requestMode = modeRef.current;
@@ -216,7 +200,6 @@ useEffect(() => {
           }),
         );
         return;
-        console.log("CHAT ERROR", error);
 
       }
 
@@ -346,7 +329,6 @@ useEffect(() => {
   });
 
   const startNewChat = () => {
-    console.trace("START NEW CHAT");
     setPersistenceError(null);
     setSavingMessage(false);
     setPendingInitialSend(null);
@@ -357,7 +339,6 @@ useEffect(() => {
   };
 
   const loadConversation = (id: string) => {
-    console.trace("LOAD CONVERSATION", id);
     setPersistenceError(null);
     setPendingInitialSend(null);
     setPendingEvent(null);
@@ -393,38 +374,29 @@ useEffect(() => {
 
   const busy = savingMessage || status === "submitted" || status === "streaming";
 
-useEffect(() => {
-  console.log("===== SYNC EFFECT =====");
-  console.log("busy:", busy);
-  console.log("conversationId:", conversationId);
-  console.log("pendingInitialSend:", pendingInitialSend);
-  console.log("initialMessages:", initialMessages.length);
-  console.log("chatMessages:", messages.length);
-
-  if (!conversationId || pendingInitialSend || busy) {
-    console.log("SYNC EFFECT EXIT");
-    return;
-  }
-
-  setMessages((prev) => {
-    console.log(
-      "setMessages called",
-      "prev:", prev.length,
-      "next:", initialMessages.length
-    );
-
-    return messagesEqual(prev, initialMessages)
-      ? prev
-      : initialMessages;
-  });
-}, [
-  busy,
-  conversationId,
-  initialMessages,
-  pendingInitialSend,
-  setMessages,
-  messages,
-]);
+  // Sync the messages loaded from Supabase into the chat when a conversation is
+  // opened from the sidebar. This must run EXACTLY ONCE per opened conversation,
+  // after the messages query has settled (not while it is still fetching a
+  // partial snapshot), and ONLY for conversations opened via `loadConversation`
+  // (signalled by `justLoadedRef`).
+  //
+  // The previous version watched `messages`/`initialMessages` continuously and
+  // overwrote the live chat array whenever they differed. Because `onFinish`
+  // persists the assistant message and then invalidates the messages query, the
+  // refetch returns asynchronously: there was a window where `initialMessages`
+  // held a stale/partial DB snapshot, so the effect replaced the live, fully
+  // streamed messages with that partial snapshot — making messages disappear.
+  // Gating on `justLoadedRef` (set only by `loadConversation`) + `isFetching`
+  // ensures we apply the DB snapshot once, before any streaming begins, and
+  // never clobber the live conversation afterwards.
+  useEffect(() => {
+    if (!justLoadedRef.current) return;
+    if (messagesFetching) return;
+    if (storedMessagesData === undefined) return;
+    if (pendingInitialSend) return;
+    justLoadedRef.current = false;
+    setMessages((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
+  }, [storedMessagesData, messagesFetching, initialMessages, pendingInitialSend, setMessages]);
   useEffect(() => {
     if (
       !pendingInitialSend ||
