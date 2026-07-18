@@ -169,6 +169,14 @@ function ChatPage() {
     [storedMessages],
   );
 
+  // Latest initialMessages, read inside effects via a ref so the sync effect
+  // does NOT depend on `initialMessages` (a useMemo object). Depending on it
+  // let the effect re-fire whenever the memo's reference changed between
+  // renders, which (on production builds) caused an infinite
+  // setMessages ↔ re-render synchronization loop.
+  const initialMessagesRef = useRef(initialMessages);
+  initialMessagesRef.current = initialMessages;
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -415,8 +423,9 @@ function ChatPage() {
     if (storedMessagesData === undefined) return;
     if (pendingInitialSend) return;
     justLoadedRef.current = false;
-    setMessagesTraced((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
-  }, [storedMessagesData, messagesFetching, initialMessages, pendingInitialSend, setMessages]);
+    const next = initialMessagesRef.current;
+    setMessagesTraced((prev) => (messagesEqual(prev, next) ? prev : next));
+  }, [storedMessagesData, messagesFetching, pendingInitialSend, setMessages]);
   useEffect(() => {
     console.trace("[effect:pendingInitialSend] run", {
       pendingInitialSend: !!pendingInitialSend,
