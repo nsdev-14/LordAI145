@@ -110,6 +110,7 @@ function ChatPage() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
   const justLoadedRef = useRef(false);
+  const renderSnapRef = useRef<Record<string, unknown> | null>(null);
   const modeRef = useRef<LordMode>(mode);
   const requestBodyRef = useRef({
     mode,
@@ -144,11 +145,18 @@ function ChatPage() {
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
     queryFn: async () => {
+      console.log("[QUERY] messages fetch start", { conversationId, at: Date.now() });
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId!)
         .order("created_at", { ascending: true });
+      console.log("[QUERY] messages fetch done", {
+        conversationId,
+        at: Date.now(),
+        error: error ? error.message : null,
+        rows: data ? data.length : "null",
+      });
       if (error) throw error;
       return data as MessageRow[];
     },
@@ -282,10 +290,39 @@ function ChatPage() {
         );
         setPersistenceError(updateError.message);
       }
-      qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+        qc.invalidateQueries({ queryKey: ["conversations", user.id] });
       qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
     },
   });
+
+  // TEMP DEBUG: per-render state snapshot to compare localhost vs Vercel.
+  {
+    const snap = {
+      t: Date.now(),
+      conversationId,
+      storedLen: storedMessagesData ? storedMessagesData.length : "undefined",
+      storedUndefined: storedMessagesData === undefined,
+      initialLen: initialMessages.length,
+      messagesLen: messages.length,
+      status,
+      messagesFetching,
+      pendingInitialSend: !!pendingInitialSend,
+      justLoaded: justLoadedRef.current,
+      useChatId: conversationId ?? "draft",
+    };
+    const prevSnap = (renderSnapRef.current ?? {}) as Record<string, unknown>;
+    const changed: Record<string, unknown> = {};
+    for (const k of Object.keys(snap)) {
+      const key = k as keyof typeof snap;
+      if (JSON.stringify(snap[key]) !== JSON.stringify(prevSnap[key])) {
+        changed[key] = snap[key];
+      }
+    }
+    if (Object.keys(changed).length > 0) {
+      console.log("[STATE]", snap.t, "changed:", changed, "full:", snap);
+    }
+    renderSnapRef.current = snap;
+  }
 
   // TEMP DEBUG: trace every setMessages call to identify recursive callers.
   const setMessagesTraced = (...args: Parameters<typeof setMessages>) => {
@@ -360,6 +397,7 @@ function ChatPage() {
   };
 
   const loadConversation = (id: string) => {
+    console.log("[TRANSITION] loadConversation", { id, at: Date.now() });
     setPersistenceError(null);
     setPendingInitialSend(null);
     setPendingEvent(null);
