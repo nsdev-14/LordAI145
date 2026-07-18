@@ -344,6 +344,7 @@ function ChatPage() {
     setPendingEvent(null);
     setConversationId(id);
     activeConversationIdRef.current = id;
+    justLoadedRef.current = true; // signal the once-only sync effect to load stored messages
     setMessages([]); // will be replaced by initialMessages once query loads
   };
 
