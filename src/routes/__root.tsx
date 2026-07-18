@@ -104,7 +104,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "LORD AI — Personal Intelligence" },
       {
         name: "description",
-        content: "LORD — the autonomous AI managing, monitoring, and optimizing your application.",
+        content: "LORD — the autonomous AI.",
       },
       { property: "og:title", content: "LORD AI — Personal Intelligence" },
       {

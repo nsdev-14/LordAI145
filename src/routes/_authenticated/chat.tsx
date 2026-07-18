@@ -279,6 +279,19 @@ function ChatPage() {
     },
   });
 
+  // TEMP DEBUG: trace every setMessages call to identify recursive callers.
+  const setMessagesTraced = (...args: Parameters<typeof setMessages>) => {
+    console.trace("[setMessages]", {
+      argIsFn: typeof args[0] === "function",
+      conversationId,
+      status,
+      justLoaded: justLoadedRef.current,
+      messagesFetching,
+      initialCount: initialMessages.length,
+    });
+    return setMessages(...args);
+  };
+
   // Ensure a conversation exists, return its id
   const ensureConversation = async (firstMessage: string): Promise<string> => {
     if (conversationId) return conversationId;
@@ -335,7 +348,7 @@ function ChatPage() {
     setPendingEvent(null);
     setConversationId(null);
     activeConversationIdRef.current = null;
-    setMessages([]);
+    setMessagesTraced([]);
   };
 
   const loadConversation = (id: string) => {
@@ -345,7 +358,7 @@ function ChatPage() {
     setConversationId(id);
     activeConversationIdRef.current = id;
     justLoadedRef.current = true; // signal the once-only sync effect to load stored messages
-    setMessages([]); // will be replaced by initialMessages once query loads
+    setMessagesTraced([]); // will be replaced by initialMessages once query loads
   };
 
   // Send a user message to the AI, choosing the right path for new vs. existing
@@ -391,14 +404,25 @@ function ChatPage() {
   // ensures we apply the DB snapshot once, before any streaming begins, and
   // never clobber the live conversation afterwards.
   useEffect(() => {
+    console.trace("[effect:syncLoadedMessages] run", {
+      justLoaded: justLoadedRef.current,
+      messagesFetching,
+      storedUndefined: storedMessagesData === undefined,
+      pendingInitialSend: !!pendingInitialSend,
+    });
     if (!justLoadedRef.current) return;
     if (messagesFetching) return;
     if (storedMessagesData === undefined) return;
     if (pendingInitialSend) return;
     justLoadedRef.current = false;
-    setMessages((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
+    setMessagesTraced((prev) => (messagesEqual(prev, initialMessages) ? prev : initialMessages));
   }, [storedMessagesData, messagesFetching, initialMessages, pendingInitialSend, setMessages]);
   useEffect(() => {
+    console.trace("[effect:pendingInitialSend] run", {
+      pendingInitialSend: !!pendingInitialSend,
+      conversationId,
+      status,
+    });
     if (
       !pendingInitialSend ||
       conversationId !== pendingInitialSend.conversationId ||
@@ -407,7 +431,7 @@ function ChatPage() {
       return;
     }
 
-    setMessages([pendingInitialSend.message]);
+    setMessagesTraced([pendingInitialSend.message]);
     setPendingInitialSend(null);
     console.info(
       JSON.stringify({
