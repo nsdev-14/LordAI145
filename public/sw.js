@@ -21,13 +21,21 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (
-    request.method !== "GET" ||
-    url.pathname.startsWith("/~oauth") ||
-    url.pathname.startsWith("/api/")
-  ) {
-    return;
-  }
+const isSupabase =
+  url.hostname.includes("supabase.co") ||
+  url.pathname.startsWith("/rest/v1") ||
+  url.pathname.startsWith("/auth/v1") ||
+  url.pathname.startsWith("/storage/v1") ||
+  url.pathname.startsWith("/functions/v1");
+
+if (
+  request.method !== "GET" ||
+  url.pathname.startsWith("/~oauth") ||
+  url.pathname.startsWith("/api/") ||
+  isSupabase
+) {
+  return;
+}
 
   if (request.mode === "navigate") {
     event.respondWith(
@@ -42,12 +50,20 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then(
       (cached) =>
         cached ||
-        fetch(request)
-          .then((response) => {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            return response;
-          })
+fetch(request)
+  .then((response) => {
+    if (!response.ok) {
+      return response;
+    }
+
+    const copy = response.clone();
+
+    caches.open(CACHE_NAME).then((cache) => {
+      cache.put(request, copy);
+    });
+
+    return response;
+  })
           .catch(() =>
             new Response(JSON.stringify({ error: "Offline" }), {
               status: 503,
