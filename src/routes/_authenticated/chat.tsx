@@ -94,6 +94,16 @@ function ChatPage() {
   const [mode, setMode] = usePersistedState<LordMode>("chat-mode", DEFAULT_MODE);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  // [DIAG] Trace every assignment to conversationId (prev -> next + stack).
+  const setConversationIdTraced = (next: string | null) => {
+    console.log("[DIAG conversationId]", {
+      prev: conversationId,
+      next,
+      stack: new Error().stack,
+    });
+    setConversationId(next);
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [savingMessage, setSavingMessage] = useState(false);
@@ -111,6 +121,12 @@ function ChatPage() {
   const activeConversationIdRef = useRef<string | null>(null);
   const justLoadedRef = useRef(false);
   const renderSnapRef = useRef<Record<string, unknown> | null>(null);
+
+  // [DIAG] Detect ChatPage remounts (which reset all local state, incl. conversationId).
+  useEffect(() => {
+    console.log("[DIAG Mounted] ChatPage");
+    return () => console.log("[DIAG Unmounted] ChatPage");
+  }, []);
   const modeRef = useRef<LordMode>(mode);
   const requestBodyRef = useRef({
     mode,
@@ -355,7 +371,7 @@ function ChatPage() {
         mode,
       }),
     );
-    setConversationId(data.id);
+    setConversationIdTraced(data.id);
     activeConversationIdRef.current = data.id;
     qc.invalidateQueries({ queryKey: ["conversations", user.id] });
     emitDashboardEvent("conversations");
@@ -391,7 +407,7 @@ function ChatPage() {
     setSavingMessage(false);
     setPendingInitialSend(null);
     setPendingEvent(null);
-    setConversationId(null);
+    setConversationIdTraced(null);
     activeConversationIdRef.current = null;
     setMessagesTraced([]);
   };
@@ -401,7 +417,7 @@ function ChatPage() {
     setPersistenceError(null);
     setPendingInitialSend(null);
     setPendingEvent(null);
-    setConversationId(id);
+    setConversationIdTraced(id);
     activeConversationIdRef.current = id;
     justLoadedRef.current = true; // signal the once-only sync effect to load stored messages
     setMessagesTraced([]); // will be replaced by initialMessages once query loads

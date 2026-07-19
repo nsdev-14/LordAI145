@@ -178,6 +178,12 @@ function RootComponent() {
     );
   }, []);
 
+  // [DIAG] Detect QueryClientProvider / whole-tree remounts.
+  useEffect(() => {
+    console.log("[DIAG Mounted] RootComponent (QueryClientProvider parent)");
+    return () => console.log("[DIAG Unmounted] RootComponent (QueryClientProvider parent)");
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AppContextProvider>

@@ -21,6 +21,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppContextProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
+
+  // [DIAG] Detect AppContextProvider remounts.
+  useEffect(() => {
+    console.log("[DIAG Mounted] AppContextProvider");
+    return () => console.log("[DIAG Unmounted] AppContextProvider");
+  }, []);
+
   const [metrics, setMetrics] = useState({
     latency: 0,
     uptime: 0,

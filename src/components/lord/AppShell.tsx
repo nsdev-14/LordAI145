@@ -45,6 +45,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const path = location.pathname;
 
+  // [DIAG] Detect AppShell remounts.
+  useEffect(() => {
+    console.log("[DIAG Mounted] AppShell", { path });
+    return () => console.log("[DIAG Unmounted] AppShell", { path });
+  }, []);
+
   const [user, setUser] = useState<User | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
