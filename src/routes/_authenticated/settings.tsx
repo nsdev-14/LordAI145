@@ -14,13 +14,27 @@ import { getModelDef } from "@/components/lord/chat/input/models";
 import { emitDashboardEvent } from "@/lib/dashboard-service";
 import { cn } from "@/lib/utils";
 import {
+  MEMORY_CATEGORIES,
+  MEMORY_CATEGORY_LABELS,
+  type MemoryCategory,
+  type MemoryRecord,
+  type MemorySettings,
+} from "@/lib/memory";
+import {
+  useMemories,
+  useMemorySettings,
+  useUpdateMemorySettings,
+  useClearMemories,
+} from "@/lib/memory";
+import {
   Loader2,
   Trash2,
-  Plus,
-  Search,
-  Pin,
-  PinOff,
-  Pencil,
+  Download,
+  RotateCcw,
+  Sparkles,
+  Brain,
+  ShieldCheck,
+  ShieldOff,
   User,
   Mail,
   Fingerprint,
@@ -29,22 +43,15 @@ import {
   Zap,
   RectangleHorizontal,
   Columns,
-  Brain,
-  ShieldCheck,
-  Download,
-  Upload,
-  RotateCcw,
-  Sparkles,
-  Target,
-  Lightbulb,
-  FolderOpen,
-  StickyNote,
-  Calendar,
   Activity,
   Layers,
   Clock,
   ChevronDown,
+  Pin,
+  Target,
+  Calendar,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "LORD — Settings" }] }),
@@ -53,55 +60,6 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 const MODE_KEYS = ["fast", "balanced", "reasoning", "coding", "creative"] as const;
 const THEME_KEYS = ["dark", "light"] as const;
-
-type Category = "goal" | "preference" | "fact" | "project" | "note";
-const MEMORY_CATEGORIES: Category[] = ["goal", "preference", "fact", "project", "note"];
-
-interface MemoryRow {
-  id: string;
-  user_id: string;
-  content: string;
-  category: string;
-  pinned: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-const categoryConfig: Record<
-  Category,
-  { text: string; badge: string; icon: LucideIcon; label: string }
-> = {
-  goal: {
-    text: "text-amber-400",
-    badge: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    icon: Target,
-    label: "Goal",
-  },
-  preference: {
-    text: "text-cyan-400",
-    badge: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-    icon: Sparkles,
-    label: "Preference",
-  },
-  fact: {
-    text: "text-emerald-400",
-    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    icon: Lightbulb,
-    label: "Fact",
-  },
-  project: {
-    text: "text-purple-400",
-    badge: "border-purple-500/30 bg-purple-500/10 text-purple-300",
-    icon: FolderOpen,
-    label: "Project",
-  },
-  note: {
-    text: "text-slate-300",
-    badge: "border-slate-500/30 bg-slate-500/10 text-slate-300",
-    icon: StickyNote,
-    label: "Note",
-  },
-};
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -200,6 +158,51 @@ function CollapsibleCard({
   );
 }
 
+function SettingsToggle({
+  icon: Icon,
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <p className="text-sm">{label}</p>
+          <p className="text-[10px] text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50",
+          checked ? "bg-[color:var(--hud)]" : "bg-border/60",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 h-4 w-4 rounded-full bg-background transition-transform",
+            checked ? "translate-x-4" : "translate-x-0.5",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 function SettingsPage() {
   const fetchSettings = useServerFn(getUserSettings);
   const saveSettings = useServerFn(updateUserSettings);
@@ -218,13 +221,6 @@ function SettingsPage() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [theme, setTheme] = useState("dark");
-  const [memoryContent, setMemoryContent] = useState("");
-  const [memoryCategory, setMemoryCategory] = useState<Category>("note");
-  const [memoryFilter, setMemoryFilter] = useState<"all" | Category>("all");
-  const [memorySearch, setMemorySearch] = useState("");
-  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
-  const [editingMemoryContent, setEditingMemoryContent] = useState("");
-  const [editingMemoryCategory, setEditingMemoryCategory] = useState<Category>("note");
 
   useEffect(() => {
     if (!data) return;
@@ -235,23 +231,10 @@ function SettingsPage() {
     setTheme(data.theme ?? "dark");
   }, [data]);
 
-  const {
-    data: memories = [],
-    isLoading: memoriesLoading,
-    error: memoriesError,
-  } = useQuery({
-    queryKey: ["memories", user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("memories")
-        .select("*")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as MemoryRow[];
-    },
-  });
+  const { data: memories = [], isLoading: memoriesLoading } = useMemories(user?.id);
+  const { data: memorySettings } = useMemorySettings(user?.id);
+  const clearMemories = useClearMemories(user?.id);
+  const updateMemorySettings = useUpdateMemorySettings(user?.id);
 
   const mutation = useMutation({
     mutationFn: (vars: {
@@ -280,84 +263,18 @@ function SettingsPage() {
     },
   });
 
-  const addMemoryMutation = useMutation({
-    mutationFn: async () => {
-      const text = memoryContent.trim();
-      if (!text || !user?.id) return;
-      const { error } = await supabase
-        .from("memories")
-        .insert({ content: text, category: memoryCategory, user_id: user.id });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      setMemoryContent("");
-      qc.invalidateQueries({ queryKey: ["memories", user?.id] });
-    },
-  });
-
-  const removeMemoryMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("memories").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memories", user?.id] }),
-  });
-
-  const pinMemoryMutation = useMutation({
-    mutationFn: async (memory: MemoryRow) => {
-      const { error } = await supabase
-        .from("memories")
-        .update({ pinned: !memory.pinned })
-        .eq("id", memory.id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memories", user?.id] }),
-  });
-
-  const editMemoryMutation = useMutation({
-    mutationFn: async ({
-      id,
-      content,
-      category,
-    }: {
-      id: string;
-      content: string;
-      category: Category;
-    }) => {
-      const { error } = await supabase.from("memories").update({ content, category }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      setEditingMemoryId(null);
-      setEditingMemoryContent("");
-      setEditingMemoryCategory("note");
-      qc.invalidateQueries({ queryKey: ["memories", user?.id] });
-    },
-  });
-
-  const filteredMemories = useMemo(
-    () =>
-      memories
-        .filter((memory) => memoryFilter === "all" || memory.category === memoryFilter)
-        .filter(
-          (memory) =>
-            !memorySearch || memory.content.toLowerCase().includes(memorySearch.toLowerCase()),
-        )
-        .sort(
-          (a, b) =>
-            (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        ),
-    [memories, memoryFilter, memorySearch],
-  );
-
   const analytics = useMemo(() => {
     const total = memories.length;
     const pinned = memories.filter((m) => m.pinned).length;
-    const counts = { goal: 0, preference: 0, fact: 0, project: 0, note: 0 };
+    const counts: Record<MemoryCategory, number> = {
+      profile: 0,
+      preference: 0,
+      fact: 0,
+      project: 0,
+      note: 0,
+    };
     memories.forEach((m) => {
-      const cat = m.category as Category;
-      if (cat in counts) counts[cat]++;
+      if (m.category in counts) counts[m.category as MemoryCategory]++;
     });
     const sorted = [...memories].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -374,6 +291,49 @@ function SettingsPage() {
         : 0;
     return { total, pinned, counts, newest, oldest, health };
   }, [memories]);
+
+  const exportMemories = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      userId: user?.id,
+      count: memories.length,
+      memories: memories.map((m) => ({
+        content: m.content,
+        category: m.category,
+        pinned: m.pinned,
+        confidence: m.confidence,
+        source: m.source,
+        created_at: m.created_at,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lord-memories-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearAllMemories = async () => {
+    if (!confirm("Delete ALL your memories? This cannot be undone.")) return;
+    try {
+      await clearMemories.mutateAsync();
+      emitDashboardEvent("memory");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const setMemorySetting = async (
+    patch: Partial<Omit<MemorySettings, "user_id" | "updated_at">>,
+  ) => {
+    try {
+      await updateMemorySettings.mutateAsync(patch);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const wipe = () => {
     if (!confirm("Clear local LORD cache (memories cache, tasks, goals)?")) return;
@@ -559,269 +519,76 @@ function SettingsPage() {
               </div>
             </CollapsibleCard>
 
-            {/* Teach LORD */}
+            {/* Memory — privacy controls + link to the full Memory dashboard */}
             <CollapsibleCard
-              storageKey="lord.settings.teach"
+              storageKey="lord.settings.memory"
               defaultOpen={false}
-              icon={Sparkles}
-              title="Teach LORD"
-              subtitle="Transfer knowledge to your companion"
-              summary={`${memories.length} memories stored`}
+              icon={Brain}
+              title="Memory"
+              subtitle="Control what LORD remembers about you"
+              summary={`${memories.length} memories · ${memorySettings?.memory_enabled === false ? "off" : "on"}`}
             >
               <div className="relative">
-                <textarea
-                  value={memoryContent}
-                  onChange={(e) => setMemoryContent(e.target.value)}
-                  rows={3}
-                  placeholder="Important fact, goal, or note…"
-                  className="w-full rounded-lg border border-border/60 bg-background/40 p-3 text-sm outline-none transition-colors duration-200 focus:border-[color:var(--hud)]/60"
-                />
-                <div className="mt-3 flex gap-2">
-                  <select
-                    value={memoryCategory}
-                    onChange={(e) => setMemoryCategory(e.target.value as Category)}
-                    className="min-h-10 flex-1 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none transition-colors duration-200 focus:border-[color:var(--hud)]/60"
+                <p className="text-xs text-muted-foreground">
+                  Manage, search, edit, pin and export your memories on the dedicated{" "}
+                  <Link
+                    to="/memory"
+                    className="text-[color:var(--hud)] underline-offset-2 hover:underline"
                   >
-                    {MEMORY_CATEGORIES.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                    Memory page
+                  </Link>
+                  .
+                </p>
+
+                <div className="relative mt-4 space-y-3">
+                  <SettingsToggle
+                    icon={memorySettings?.memory_enabled === false ? ShieldOff : ShieldCheck}
+                    label="Memory"
+                    description="Let LORD remember things across chats"
+                    checked={memorySettings?.memory_enabled ?? true}
+                    onChange={(v) => setMemorySetting({ memory_enabled: v })}
+                  />
+                  <SettingsToggle
+                    icon={Brain}
+                    label="Auto-save"
+                    description="Save high-confidence memories without asking"
+                    checked={memorySettings?.auto_save ?? true}
+                    disabled={memorySettings?.memory_enabled === false}
+                    onChange={(v) => setMemorySetting({ auto_save: v })}
+                  />
+                  <SettingsToggle
+                    icon={ShieldCheck}
+                    label="Ask before saving"
+                    description="Confirm lower-confidence memories first"
+                    checked={memorySettings?.ask_before_save ?? true}
+                    disabled={memorySettings?.memory_enabled === false}
+                    onChange={(v) => setMemorySetting({ ask_before_save: v })}
+                  />
+                </div>
+
+                <div className="relative mt-5 flex flex-wrap gap-3 border-t border-border/30 pt-4">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => addMemoryMutation.mutate()}
-                    disabled={addMemoryMutation.isPending || !memoryContent.trim()}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[color:var(--hud)] px-4 py-2 text-sm font-semibold text-[color:var(--background)] shadow-[0_0_20px_var(--hud)] transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={exportMemories}
+                    disabled={memories.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/40 px-4 py-2.5 text-sm font-medium transition-all duration-200 hover:border-[color:var(--hud)]/50 hover:text-[color:var(--hud)] disabled:opacity-50"
                   >
-                    {addMemoryMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                    Store
+                    <Download className="h-4 w-4" />
+                    Export Memories
                   </motion.button>
-                </div>
-                {addMemoryMutation.error && (
-                  <p className="mt-2 text-xs text-destructive">
-                    {(addMemoryMutation.error as Error).message}
-                  </p>
-                )}
-              </div>
-
-              <div className="relative mt-4 flex flex-wrap items-center gap-2">
-                {(["all", ...MEMORY_CATEGORIES] as const).map((category) => (
                   <motion.button
-                    key={category}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setMemoryFilter(category)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider transition-all duration-200",
-                      memoryFilter === category
-                        ? "border border-[color:var(--hud)]/40 bg-[color:var(--hud)]/20 text-[color:var(--hud)] shadow-[0_0_12px_var(--hud)]"
-                        : "border border-border/50 text-muted-foreground hover:border-[color:var(--hud)]/20 hover:text-foreground/80",
-                    )}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={clearAllMemories}
+                    disabled={memories.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm font-medium text-destructive transition-all duration-200 hover:border-destructive/60 hover:bg-destructive/20 disabled:opacity-50"
                   >
-                    {category}
+                    <Trash2 className="h-4 w-4" />
+                    Delete All Memories
                   </motion.button>
-                ))}
-              </div>
-
-              <div className="relative mb-4 mt-3">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={memorySearch}
-                  onChange={(e) => setMemorySearch(e.target.value)}
-                  placeholder="Search memories…"
-                  className="w-full rounded-lg border border-border/60 bg-background/40 py-2.5 pl-9 pr-3 text-sm outline-none transition-colors duration-200 focus:border-[color:var(--hud)]/60"
-                />
-              </div>
-
-              {memoriesLoading ? (
-                <div className="relative space-y-2.5">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="h-16 animate-pulse rounded-lg bg-primary/5" />
-                  ))}
                 </div>
-              ) : memoriesError ? (
-                <p className="relative text-sm text-destructive">
-                  {(memoriesError as Error).message}
-                </p>
-              ) : filteredMemories.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="relative flex flex-col items-center justify-center py-12 text-center"
-                >
-                  <div className="grid h-16 w-16 place-items-center rounded-full border border-border/40">
-                    <Sparkles className="h-8 w-8 text-muted-foreground/40" />
-                  </div>
-                  <p className="mt-4 text-sm font-medium text-muted-foreground">
-                    No memories found
-                  </p>
-                  <p className="mt-1 max-w-[280px] text-xs text-muted-foreground/60">
-                    Start teaching LORD by storing your first memory above.
-                  </p>
-                </motion.div>
-              ) : (
-                <ul className="relative space-y-2.5">
-                  <AnimatePresence mode="popLayout">
-                    {filteredMemories.map((memory, index) => {
-                      const isEditing = editingMemoryId === memory.id;
-                      const isPinned = memory.pinned;
-                      const cfg =
-                        categoryConfig[memory.category as Category] ?? categoryConfig.note;
-                      const Icon = cfg.icon;
-                      return (
-                        <motion.li
-                          key={memory.id}
-                          layout
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0, transition: { delay: index * 0.03 } }}
-                          exit={{ opacity: 0, y: -10 }}
-                          whileHover={{
-                            y: -2,
-                            transition: { type: "spring", stiffness: 400, damping: 25 },
-                          }}
-                          className={cn(
-                            "group relative overflow-hidden rounded-xl border backdrop-blur-sm transition-all duration-200",
-                            isPinned
-                              ? "border-[color:var(--hud)]/50 bg-[color:var(--hud)]/[0.04] shadow-[0_0_22px_var(--hud)]"
-                              : "border-border/40 bg-background/30 hover:border-border/60 hover:bg-background/40",
-                          )}
-                        >
-                          <div className="relative p-4">
-                            {isPinned && (
-                              <motion.div
-                                className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[color:var(--hud)]/5 via-[color:var(--hud)]/10 to-[color:var(--hud)]/5"
-                                animate={{ opacity: [0.5, 1, 0.5] }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                              />
-                            )}
-                            <div className="relative flex items-start justify-between gap-3">
-                              {isEditing ? (
-                                <div className="flex-1 space-y-2.5">
-                                  <textarea
-                                    value={editingMemoryContent}
-                                    onChange={(e) => setEditingMemoryContent(e.target.value)}
-                                    rows={3}
-                                    className="w-full rounded-lg border border-border/60 bg-background/40 p-3 text-sm outline-none transition-colors duration-200 focus:border-[color:var(--hud)]/60"
-                                  />
-                                  <select
-                                    value={editingMemoryCategory}
-                                    onChange={(e) =>
-                                      setEditingMemoryCategory(e.target.value as Category)
-                                    }
-                                    className="min-h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-sm outline-none transition-colors duration-200 focus:border-[color:var(--hud)]/60"
-                                  >
-                                    {MEMORY_CATEGORIES.map((category) => (
-                                      <option key={category} value={category}>
-                                        {category}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="flex gap-2">
-                                    <motion.button
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() =>
-                                        editMemoryMutation.mutate({
-                                          id: memory.id,
-                                          content: editingMemoryContent.trim(),
-                                          category: editingMemoryCategory,
-                                        })
-                                      }
-                                      disabled={
-                                        editMemoryMutation.isPending || !editingMemoryContent.trim()
-                                      }
-                                      className="rounded-lg bg-[color:var(--hud)] px-3 py-2 text-xs font-semibold text-[color:var(--background)] shadow-[0_0_12px_var(--hud)] disabled:opacity-50"
-                                    >
-                                      Save
-                                    </motion.button>
-                                    <motion.button
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() => {
-                                        setEditingMemoryId(null);
-                                        setEditingMemoryContent("");
-                                        setEditingMemoryCategory("note");
-                                      }}
-                                      className="rounded-lg border border-border/60 px-3 py-2 text-xs transition-colors duration-200 hover:border-[color:var(--hud)]/40"
-                                    >
-                                      Cancel
-                                    </motion.button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="flex-1 text-sm leading-relaxed">{memory.content}</p>
-                              )}
-                              <div className="flex gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => pinMemoryMutation.mutate(memory)}
-                                  className={cn(
-                                    "rounded-md p-1.5 transition-colors duration-200",
-                                    isPinned
-                                      ? "text-[color:var(--hud)]"
-                                      : "text-muted-foreground hover:text-[color:var(--hud)]",
-                                  )}
-                                >
-                                  {isPinned ? (
-                                    <Pin className="h-3.5 w-3.5 fill-[color:var(--hud)]" />
-                                  ) : (
-                                    <PinOff className="h-3.5 w-3.5" />
-                                  )}
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => {
-                                    setEditingMemoryId(memory.id);
-                                    setEditingMemoryContent(memory.content);
-                                    setEditingMemoryCategory(memory.category as Category);
-                                  }}
-                                  className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:text-[color:var(--hud)]"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => removeMemoryMutation.mutate(memory.id)}
-                                  className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:text-destructive"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </motion.button>
-                              </div>
-                            </div>
-                            <div className="relative mt-3 flex items-center gap-2">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                                  cfg.badge,
-                                )}
-                              >
-                                <Icon className="h-3 w-3" />
-                                {memory.category}
-                              </span>
-                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                                {new Date(memory.created_at).toLocaleDateString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </motion.li>
-                      );
-                    })}
-                  </AnimatePresence>
-                </ul>
-              )}
+              </div>
             </CollapsibleCard>
 
             {/* Memory Analytics */}
@@ -918,28 +685,23 @@ function SettingsPage() {
                   Distribution
                 </p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {(Object.entries(analytics.counts) as [Category, number][]).map(
-                    ([cat, count]) => {
-                      const cfg = categoryConfig[cat];
-                      const pct =
-                        analytics.total > 0 ? Math.round((count / analytics.total) * 100) : 0;
-                      return (
-                        <div
-                          key={cat}
-                          className="rounded-lg border border-border/40 bg-background/20 p-3 text-center"
-                        >
-                          <cfg.icon className={cn("mx-auto mb-1 h-4 w-4", cfg.text)} />
-                          <p className="font-display text-base font-bold text-foreground">
-                            {count}
-                          </p>
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                            {cat}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground/60">{pct}%</p>
-                        </div>
-                      );
-                    },
-                  )}
+                  {MEMORY_CATEGORIES.map((cat) => {
+                    const count = analytics.counts[cat] ?? 0;
+                    const pct =
+                      analytics.total > 0 ? Math.round((count / analytics.total) * 100) : 0;
+                    return (
+                      <div
+                        key={cat}
+                        className="rounded-lg border border-border/40 bg-background/20 p-3 text-center"
+                      >
+                        <p className="font-display text-base font-bold text-foreground">{count}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                          {MEMORY_CATEGORY_LABELS[cat]}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60">{pct}%</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1009,8 +771,6 @@ function SettingsPage() {
                 </p>
                 <div className="grid gap-2.5">
                   {[
-                    { icon: Download, label: "Export Memories" },
-                    { icon: Upload, label: "Import Memories" },
                     { icon: Download, label: "Download Data" },
                     { icon: Trash2, label: "Delete Account" },
                     { icon: RotateCcw, label: "Reset Settings" },

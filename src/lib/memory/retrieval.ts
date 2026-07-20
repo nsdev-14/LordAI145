@@ -1,0 +1,118 @@
+/**
+ * Semantic memory retrieval.
+ *
+ * Given a query (the current user turn + recent context) and the user's stored
+ * memories, rank by relevance and return only the most useful subset:
+ *   • Pinned memories are always included (user-declared important).
+ *   • The rest are ranked by cosine similarity of embeddings.
+ *   • A hard cap (MEMORY_RETRIEVAL_LIMIT) and a token budget keep context small
+ *     to minimise token usage.
+ *   • Unrelated memories (similarity below a floor) are dropped entirely.
+ *
+ * Works with or without pgvector: when a query embedding is available we rank by
+ * it; otherwise we rank by simple keyword overlap as a graceful fallback.
+ */
+
+import { embed, cosineSimilarity } from "./embeddings";
+import { MEMORY_RETRIEVAL_LIMIT, MEMORY_CONTEXT_TOKEN_BUDGET } from "./constants";
+import type { MemoryRecord } from "./types";
+
+function estimateTokens(s: string): number {
+  return Math.ceil(s.length / 4);
+}
+
+export interface RetrievalOptions {
+  limit?: number;
+  tokenBudget?: number;
+  /** Drop memories with similarity below this floor (0 disables). */
+  minSimilarity?: number;
+  /** When true, skip embedding entirely and rank by keyword overlap. */
+  lightweight?: boolean;
+}
+
+export interface RetrievedMemory {
+  memory: MemoryRecord;
+  similarity: number;
+}
+
+/**
+ * Retrieve the most relevant memories for a query string.
+ * Returns memories ordered by relevance; pinned memories float to the top.
+ */
+export async function retrieveMemories(
+  query: string,
+  memories: MemoryRecord[],
+  options: RetrievalOptions = {},
+): Promise<RetrievedMemory[]> {
+  const limit = options.limit ?? MEMORY_RETRIEVAL_LIMIT;
+  const tokenBudget = options.tokenBudget ?? MEMORY_CONTEXT_TOKEN_BUDGET;
+  const minSimilarity = options.minSimilarity ?? 0;
+
+  if (memories.length === 0) return [];
+
+  const pinned = memories.filter((m) => m.pinned);
+
+  // Compute query embedding once.
+  let queryVec: number[] | null = null;
+  if (!options.lightweight) {
+    try {
+      queryVec = (await embed(query)).vector;
+    } catch {
+      queryVec = null;
+    }
+  }
+
+  const scored = memories
+    .filter((m) => !m.pinned)
+    .map((m) => {
+      let similarity: number;
+      if (queryVec && m.embedding && m.embedding.length === queryVec.length) {
+        similarity = cosineSimilarity(queryVec, m.embedding);
+      } else {
+        similarity = keywordOverlap(query, m.content);
+      }
+      return { memory: m, similarity };
+    })
+    .filter((r) => r.similarity >= minSimilarity);
+
+  scored.sort((a, b) => b.similarity - a.similarity);
+
+  // Build the result within token budget: pinned first, then most relevant.
+  const result: RetrievedMemory[] = [];
+  let used = 0;
+
+  for (const p of pinned) {
+    const cost = estimateTokens(p.content) + 8;
+    if (used + cost <= tokenBudget || result.length === 0) {
+      result.push({ memory: p, similarity: 1 });
+      used += cost;
+    }
+  }
+
+  for (const r of scored) {
+    if (result.length >= limit) break;
+    const cost = estimateTokens(r.memory.content) + 8;
+    if (used + cost > tokenBudget && result.length > 0) break;
+    result.push(r);
+    used += cost;
+  }
+
+  return result;
+}
+
+function keywordOverlap(a: string, b: string): number {
+  const sa = new Set(tokenize(a));
+  const sb = new Set(tokenize(b));
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  for (const t of sa) if (sb.has(t)) inter++;
+  return inter / Math.sqrt(sa.size * sb.size);
+}
+
+function tokenize(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
+}

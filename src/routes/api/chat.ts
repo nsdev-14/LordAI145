@@ -16,6 +16,7 @@ import { apiErrorResponse, getSafeErrorMessage } from "@/lib/api-error";
 import { requireSupabaseRequestAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { retrieveMemories, type MemoryRecord } from "@/lib/memory";
 
 const MODE_ENUM = Object.keys(LORD_MODELS) as [LordMode, ...LordMode[]];
 
@@ -60,6 +61,69 @@ function getLastUserText(messages: UIMessage[]) {
       .join("")
       .slice(0, 120) ?? ""
   );
+}
+
+/**
+ * Build a memory section for the system prompt using semantic retrieval.
+ *
+ * Fetches the user's memories (including embeddings) and ranks them by relevance
+ * to the latest user turn. Pinned memories are always included; unrelated ones
+ * are dropped entirely so we never bloat the context or waste tokens. Falls back
+ * to a lightweight keyword ranking if embeddings are unavailable. Returns "" when
+ * the user has no memories or memory is disabled.
+ */
+async function buildMemoryPrompt(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  query: string,
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("memories")
+    .select("id, content, category, pinned, confidence, embedding, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    id: string;
+    content: string;
+    category: string;
+    pinned: boolean;
+    confidence: number;
+    embedding: unknown | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  if (rows.length === 0) return "";
+
+  const memories: MemoryRecord[] = rows
+    .filter((r) => typeof r.content === "string" && r.content.trim())
+    .map((r) => ({
+      id: r.id,
+      user_id: userId,
+      content: r.content,
+      category: (r.category as "profile" | "preference" | "fact" | "project" | "note") ?? "note",
+      pinned: r.pinned,
+      confidence: typeof r.confidence === "number" ? r.confidence : 1,
+      source: "auto" as const,
+      embedding: Array.isArray(r.embedding) ? (r.embedding as number[]) : null,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+
+  let ranked = memories;
+  try {
+    const retrieved = await retrieveMemories(query, memories, { lightweight: false });
+    if (retrieved.length > 0) {
+      ranked = retrieved.map((r) => r.memory);
+    }
+  } catch {
+    // Embedding failed — keep newest-first order as a safe fallback.
+  }
+
+  const lines = ranked.map((m) => `- ${m.content.replace(/\s+/g, " ").trim()}`).slice(0, 12);
+  if (lines.length === 0) return "";
+  return `USER MEMORY (relevant context only):\n${lines.join("\n")}\n\nUse relevant memories naturally when helpful. Ignore irrelevant memories. Do not mention stored memories unless the user asks. Do not invent memories.`;
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -115,27 +179,16 @@ export const Route = createFileRoute("/api/chat")({
         const explicitModelId = body.modelId;
         const uiMessages = body.messages as unknown as UIMessage[];
         const authContext = context as
-          | { userId?: string; supabase?: SupabaseClient<Database> }
-          | undefined;
+          { userId?: string; supabase?: SupabaseClient<Database> } | undefined;
         let memoryPrompt = "";
 
         if (authContext?.userId && authContext.supabase) {
           try {
-            
-            const { data: memories = [], error } = await authContext.supabase
-              .from("memories")
-              .select("content")
-              .eq("user_id", authContext.userId)
-              .order("created_at", { ascending: false })
-              .limit(10);
-            if (error) throw error;
-            const memoryLines = (memories as Array<{ content?: string }> | undefined)
-              ?.filter((memory) => typeof memory?.content === "string" && memory.content.trim())
-              .map((memory) => `- ${memory.content!.trim().replace(/\s+/g, " ")}`)
-              .slice(0, 8);
-            if (memoryLines && memoryLines.length > 0) {
-              memoryPrompt = `USER MEMORY:\n${memoryLines.join("\n")}\n\nUse relevant memories naturally when helpful. Ignore irrelevant memories. Do not mention stored memories unless the user asks. Do not invent memories.`;
-            }
+            memoryPrompt = await buildMemoryPrompt(
+              authContext.supabase,
+              authContext.userId,
+              getLastUserText(uiMessages),
+            );
           } catch (err) {
             logChat("api_chat_memory_fetch_error", {
               requestId,
@@ -261,15 +314,16 @@ export const Route = createFileRoute("/api/chat")({
               "AI credits are exhausted. Add workspace credits and try again.",
               requestId,
               {
-                attempts: attempts?.map((a) => ({
-                  model: a.model,
-                  status: a.status,
-                  reason: a.reason,
-                  retryable: a.retryable,
-                  providerMessage: a.providerMessage,
-                  errorCode: a.errorCode,
-                  requestId: a.requestId,
-                })) ?? [],
+                attempts:
+                  attempts?.map((a) => ({
+                    model: a.model,
+                    status: a.status,
+                    reason: a.reason,
+                    retryable: a.retryable,
+                    providerMessage: a.providerMessage,
+                    errorCode: a.errorCode,
+                    requestId: a.requestId,
+                  })) ?? [],
               },
             );
           }
@@ -280,15 +334,16 @@ export const Route = createFileRoute("/api/chat")({
               "AI is receiving too many requests. Please retry shortly.",
               requestId,
               {
-                attempts: attempts?.map((a) => ({
-                  model: a.model,
-                  status: a.status,
-                  reason: a.reason,
-                  retryable: a.retryable,
-                  providerMessage: a.providerMessage,
-                  errorCode: a.errorCode,
-                  requestId: a.requestId,
-                })) ?? [],
+                attempts:
+                  attempts?.map((a) => ({
+                    model: a.model,
+                    status: a.status,
+                    reason: a.reason,
+                    retryable: a.retryable,
+                    providerMessage: a.providerMessage,
+                    errorCode: a.errorCode,
+                    requestId: a.requestId,
+                  })) ?? [],
               },
             );
           }
@@ -340,15 +395,16 @@ export const Route = createFileRoute("/api/chat")({
             "All configured models failed.",
             requestId,
             {
-              attempts: attempts?.map((a) => ({
-                model: a.model,
-                status: a.status,
-                reason: a.reason,
-                retryable: a.retryable,
-                providerMessage: a.providerMessage,
-                errorCode: a.errorCode,
-                requestId: a.requestId,
-              })) ?? [],
+              attempts:
+                attempts?.map((a) => ({
+                  model: a.model,
+                  status: a.status,
+                  reason: a.reason,
+                  retryable: a.retryable,
+                  providerMessage: a.providerMessage,
+                  errorCode: a.errorCode,
+                  requestId: a.requestId,
+                })) ?? [],
             },
           );
         }

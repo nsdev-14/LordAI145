@@ -1,4 +1,4 @@
-const CACHE_NAME = "lord-ai-v1";
+const CACHE_NAME = "lord-ai-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/lord-icon.png"];
 
 self.addEventListener("install", (event) => {

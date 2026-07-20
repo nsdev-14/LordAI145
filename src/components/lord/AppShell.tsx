@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Calendar,
+  BarChart3,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ const NAV = [
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/tasks", label: "Tasks", icon: Target },
   { to: "/documents", label: "Documents", icon: FileText },
+  { to: "/statistics", label: "Statistics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

@@ -6,7 +6,8 @@ export type ApiErrorCode =
   | "AI_CREDITS_EXHAUSTED"
   | "AI_RATE_LIMITED"
   | "AI_UPSTREAM_ERROR"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "NOT_FOUND";
 
 export interface ApiErrorBody {
   error: {

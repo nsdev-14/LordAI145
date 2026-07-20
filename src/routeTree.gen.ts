@@ -14,18 +14,23 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ShareTokenRouteImport } from './routes/share/$token'
+import { Route as ApiSharesRouteImport } from './routes/api/shares'
 import { Route as ApiOpenrouterTestRouteImport } from './routes/api/openrouter-test'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedVoiceRouteImport } from './routes/_authenticated/voice'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedStudyRouteImport } from './routes/_authenticated/study'
+import { Route as AuthenticatedStatisticsRouteImport } from './routes/_authenticated/statistics'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedProductivityRouteImport } from './routes/_authenticated/productivity'
 import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as ApiSharesTokenRouteImport } from './routes/api/shares/$token'
+import { Route as ApiSharedTokenRouteImport } from './routes/api/shared/$token'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -49,6 +54,16 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSharesRoute = ApiSharesRouteImport.update({
+  id: '/api/shares',
+  path: '/api/shares',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOpenrouterTestRoute = ApiOpenrouterTestRouteImport.update({
@@ -79,6 +94,11 @@ const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
 const AuthenticatedStudyRoute = AuthenticatedStudyRouteImport.update({
   id: '/study',
   path: '/study',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStatisticsRoute = AuthenticatedStatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -112,6 +132,16 @@ const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiSharesTokenRoute = ApiSharesTokenRouteImport.update({
+  id: '/$token',
+  path: '/$token',
+  getParentRoute: () => ApiSharesRoute,
+} as any)
+const ApiSharedTokenRoute = ApiSharedTokenRouteImport.update({
+  id: '/api/shared/$token',
+  path: '/api/shared/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,12 +154,17 @@ export interface FileRoutesByFullPath {
   '/memory': typeof AuthenticatedMemoryRoute
   '/productivity': typeof AuthenticatedProductivityRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/statistics': typeof AuthenticatedStatisticsRoute
   '/study': typeof AuthenticatedStudyRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/openrouter-test': typeof ApiOpenrouterTestRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
+  '/share/$token': typeof ShareTokenRoute
+  '/api/shared/$token': typeof ApiSharedTokenRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,12 +177,17 @@ export interface FileRoutesByTo {
   '/memory': typeof AuthenticatedMemoryRoute
   '/productivity': typeof AuthenticatedProductivityRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/statistics': typeof AuthenticatedStatisticsRoute
   '/study': typeof AuthenticatedStudyRoute
   '/tasks': typeof AuthenticatedTasksRoute
   '/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/openrouter-test': typeof ApiOpenrouterTestRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
+  '/share/$token': typeof ShareTokenRoute
+  '/api/shared/$token': typeof ApiSharedTokenRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -162,12 +202,17 @@ export interface FileRoutesById {
   '/_authenticated/memory': typeof AuthenticatedMemoryRoute
   '/_authenticated/productivity': typeof AuthenticatedProductivityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/statistics': typeof AuthenticatedStatisticsRoute
   '/_authenticated/study': typeof AuthenticatedStudyRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/voice': typeof AuthenticatedVoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/openrouter-test': typeof ApiOpenrouterTestRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
+  '/share/$token': typeof ShareTokenRoute
+  '/api/shared/$token': typeof ApiSharedTokenRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -182,12 +227,17 @@ export interface FileRouteTypes {
     | '/memory'
     | '/productivity'
     | '/settings'
+    | '/statistics'
     | '/study'
     | '/tasks'
     | '/voice'
     | '/api/chat'
     | '/api/health'
     | '/api/openrouter-test'
+    | '/api/shares'
+    | '/share/$token'
+    | '/api/shared/$token'
+    | '/api/shares/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -200,12 +250,17 @@ export interface FileRouteTypes {
     | '/memory'
     | '/productivity'
     | '/settings'
+    | '/statistics'
     | '/study'
     | '/tasks'
     | '/voice'
     | '/api/chat'
     | '/api/health'
     | '/api/openrouter-test'
+    | '/api/shares'
+    | '/share/$token'
+    | '/api/shared/$token'
+    | '/api/shares/$token'
   id:
     | '__root__'
     | '/'
@@ -219,12 +274,17 @@ export interface FileRouteTypes {
     | '/_authenticated/memory'
     | '/_authenticated/productivity'
     | '/_authenticated/settings'
+    | '/_authenticated/statistics'
     | '/_authenticated/study'
     | '/_authenticated/tasks'
     | '/_authenticated/voice'
     | '/api/chat'
     | '/api/health'
     | '/api/openrouter-test'
+    | '/api/shares'
+    | '/share/$token'
+    | '/api/shared/$token'
+    | '/api/shares/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +296,9 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiOpenrouterTestRoute: typeof ApiOpenrouterTestRoute
+  ApiSharesRoute: typeof ApiSharesRouteWithChildren
+  ShareTokenRoute: typeof ShareTokenRoute
+  ApiSharedTokenRoute: typeof ApiSharedTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -273,6 +336,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shares': {
+      id: '/api/shares'
+      path: '/api/shares'
+      fullPath: '/api/shares'
+      preLoaderRoute: typeof ApiSharesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-test': {
@@ -317,6 +394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/statistics': {
+      id: '/_authenticated/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof AuthenticatedStatisticsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -359,6 +443,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/shares/$token': {
+      id: '/api/shares/$token'
+      path: '/$token'
+      fullPath: '/api/shares/$token'
+      preLoaderRoute: typeof ApiSharesTokenRouteImport
+      parentRoute: typeof ApiSharesRoute
+    }
+    '/api/shared/$token': {
+      id: '/api/shared/$token'
+      path: '/api/shared/$token'
+      fullPath: '/api/shared/$token'
+      preLoaderRoute: typeof ApiSharedTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -369,6 +467,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
   AuthenticatedProductivityRoute: typeof AuthenticatedProductivityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedStatisticsRoute: typeof AuthenticatedStatisticsRoute
   AuthenticatedStudyRoute: typeof AuthenticatedStudyRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedVoiceRoute: typeof AuthenticatedVoiceRoute
@@ -381,6 +480,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
   AuthenticatedProductivityRoute: AuthenticatedProductivityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedStatisticsRoute: AuthenticatedStatisticsRoute,
   AuthenticatedStudyRoute: AuthenticatedStudyRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedVoiceRoute: AuthenticatedVoiceRoute,
@@ -388,6 +488,18 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+interface ApiSharesRouteChildren {
+  ApiSharesTokenRoute: typeof ApiSharesTokenRoute
+}
+
+const ApiSharesRouteChildren: ApiSharesRouteChildren = {
+  ApiSharesTokenRoute: ApiSharesTokenRoute,
+}
+
+const ApiSharesRouteWithChildren = ApiSharesRoute._addFileChildren(
+  ApiSharesRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -398,6 +510,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiOpenrouterTestRoute: ApiOpenrouterTestRoute,
+  ApiSharesRoute: ApiSharesRouteWithChildren,
+  ShareTokenRoute: ShareTokenRoute,
+  ApiSharedTokenRoute: ApiSharedTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

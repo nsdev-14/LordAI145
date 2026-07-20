@@ -1,12 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LayoutPanelLeft, Copy, Check, RefreshCcw } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/lord/AppShell";
+import { Toaster } from "@/components/ui/sonner";
 import { useAppContext } from "@/components/lord/AppContextProvider";
 import { ChatSidebar } from "@/components/lord/ChatSidebar";
+import { FolderSidebar } from "@/components/lord/folders/FolderSidebar";
+import { ShareButton } from "@/components/lord/share/ShareButton";
+import type { ConversationWithFolder } from "@/lib/folders";
 import { RichMessage } from "@/components/lord/RichMessage";
 import { TypingDots } from "@/components/lord/TypingDots";
 import { ChatInput } from "@/components/lord/chat/input/ChatInput";
@@ -26,7 +31,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { getSupabaseAuthHeaders } from "@/lib/authenticated-fetch";
 import { emitDashboardEvent } from "@/lib/dashboard-service";
+import { generateChatTitle, shouldGenerateTitle } from "@/lib/chat-title";
 import { cn } from "@/lib/utils";
+import { useMessageRealtime } from "@/lib/realtime/use-realtime-sync";
+import { createClientTag, markClientTagSent } from "@/lib/realtime/client-tag";
+import {
+  detectMemories,
+  detectSensitive,
+  memoryExists,
+  useAddMemory,
+  useMemories,
+  useMemorySettings,
+  useSaveDetectedMemory,
+  type DetectedMemory,
+} from "@/lib/memory";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -42,9 +60,52 @@ interface ConversationRow {
   created_at: string;
   updated_at: string;
   last_message_at: string;
+  pinned?: boolean;
+  favorite?: boolean;
+  pinned_at?: string | null;
+  sort_order?: number | null;
 }
 
+/** Message shape stored in the React Query cache keyed by ["messages", id]. */
+interface CachedMessageRow {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  model: string | null;
+  created_at: string;
+  streaming?: boolean;
+  client_tag?: string | null;
+}
 
+// A transient conversation inserted into the React Query cache *before* the DB
+// request resolves, so the sidebar renders it instantly. Marked with
+// `isOptimistic` so it can be identified and migrated/removed without ambiguity.
+interface OptimisticConversationRow extends ConversationRow {
+  isOptimistic: boolean;
+}
+
+// Prefix used for every optimistic id so a real row (uuid) is never confused
+// with a temporary one, and so rollback can target exactly the right entry.
+const OPTIMISTIC_ID_PREFIX = "temp-";
+
+function isOptimisticId(id: string): boolean {
+  return id.startsWith(OPTIMISTIC_ID_PREFIX);
+}
+
+function createOptimisticConversation(userId: string, title: string): OptimisticConversationRow {
+  const now = new Date().toISOString();
+  return {
+    id: `${OPTIMISTIC_ID_PREFIX}${crypto.randomUUID()}`,
+    user_id: userId,
+    title,
+    created_at: now,
+    updated_at: now,
+    last_message_at: now,
+    isOptimistic: true,
+  };
+}
 
 interface MessageRow {
   id: string;
@@ -54,6 +115,8 @@ interface MessageRow {
   content: string;
   model: string | null;
   created_at: string;
+  streaming?: boolean;
+  client_tag?: string | null;
 }
 
 // Stable empty references so that a `useQuery` result with no data does NOT
@@ -83,6 +146,16 @@ function messagesEqual(a: UIMessage[], b: UIMessage[]): boolean {
     if (getMessageText(a[i]) !== getMessageText(b[i])) return false;
   }
   return true;
+}
+
+// Titles that count as "not meaningfully named" — i.e. the default placeholders
+// the app uses for brand-new conversations. A conversation whose title is one of
+// these (and which has no messages) is treated as an empty, discardable chat.
+// A manually renamed conversation gets a real title and is therefore protected
+// from automatic cleanup.
+const DEFAULT_CONVERSATION_TITLES = new Set(["", "new chat", "untitled"]);
+function isDefaultTitle(title: string | undefined | null): boolean {
+  return DEFAULT_CONVERSATION_TITLES.has((title ?? "").trim().toLowerCase());
 }
 
 function ChatPage() {
@@ -117,15 +190,72 @@ function ChatPage() {
     conversationId: string;
     isNewConversation: boolean;
   } | null>(null);
+
+  // ---- Long-Term Memory auto-detection --------------------------------------
+  // When the user says something worth remembering, we surface a confirmation
+  // card (ask-before-save) or auto-save it (above the confidence threshold),
+  // depending on the user's memory settings. Detected memories never include
+  // sensitive data (passwords, secrets, payment info).
+  const { data: memorySettings } = useMemorySettings(user.id);
+  const { data: memories = [] } = useMemories(user.id);
+  const saveDetected = useSaveDetectedMemory(user.id);
+  const addMemory = useAddMemory(user.id);
+  const [pendingMemories, setPendingMemories] = useState<{
+    detected: DetectedMemory[];
+    userMessage: UIMessage;
+    conversationId: string;
+    isNewConversation: boolean;
+  } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeConversationIdRef = useRef<string | null>(null);
+  // Scroll-position tracking for the "New messages" affordance. We auto-scroll
+  // only when the user is already at the bottom; if they're reading older
+  // messages we surface a button instead of yanking the scroll position.
+  const atBottomRef = useRef(true);
+  const [showNewMessages, setShowNewMessages] = useState(false);
+  const STICK_BOTTOM_THRESHOLD = 120;
   const justLoadedRef = useRef(false);
   const renderSnapRef = useRef<Record<string, unknown> | null>(null);
+  // Guards automatic title generation so it runs at most ONCE per conversation.
+  const titleGeneratedForRef = useRef<string | null>(null);
+  // Mirror of whether the assistant is currently streaming/submitting for the
+  // active conversation. Read inside cleanup logic so we NEVER delete a
+  // conversation mid-response (e.g. when the user switches away while streaming).
+  // Assigned just after `status` is declared (see below).
+  const isAssistantStreamingRef = useRef(false);
+
+  // Cross-device streaming: tracks the assistant message row we are incrementally
+  // persisting to Supabase so that OTHER devices receive streaming tokens in
+  // real time (see the streaming-persist effect below). The originating device
+  // already shows tokens via `useChat`; these refs only drive the DB writes
+  // that other devices sync.
+  const streamingMsgIdRef = useRef<string | null>(null);
+  const streamingConvIdRef = useRef<string | null>(null);
+  const streamingContentRef = useRef<string>("");
 
   // [DIAG] Detect ChatPage remounts (which reset all local state, incl. conversationId).
   useEffect(() => {
     console.log("[DIAG Mounted] ChatPage");
     return () => console.log("[DIAG Unmounted] ChatPage");
+  }, []);
+
+  // Clean up the active conversation when the user navigates away from /chat
+  // (SPA route change, sign-out) — ChatPage unmounts in all of those cases.
+  useEffect(() => {
+    return () => {
+      void cleanupEmptyConversation(activeConversationIdRef.current);
+    };
+  }, []);
+
+  // Clean up on tab close / refresh / browser navigation away. `beforeunload`
+  // fires for these and best-effort deletes the empty conversation. The DB
+  // user-message count check keeps it safe across tabs; failures are swallowed.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      void cleanupEmptyConversation(activeConversationIdRef.current);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
   const modeRef = useRef<LordMode>(mode);
   const requestBodyRef = useRef({
@@ -151,6 +281,31 @@ function ChatPage() {
     },
   });
   const conversations = conversationsData ?? EMPTY_CONVERSATIONS;
+
+  // Enrich conversations with their folder_id (the DB column is selected via `*`)
+  // so the FolderSidebar can group them. Stable memo keeps identity across renders.
+  const conversationsWithFolder = useMemo<ConversationWithFolder[]>(
+    () =>
+      conversations.map((c) => ({
+        ...c,
+        folder_id: (c as ConversationRow & { folder_id?: string | null }).folder_id ?? null,
+      })),
+    [conversations],
+  );
+
+  // Optimistically reparent a conversation in the conversations cache (used by the
+  // folder drag-and-drop). Mirrors `patchConversation` for the folder_id field.
+  const patchConversationFolder = useCallback(
+    (id: string, folderId: string | null) => {
+      qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) => {
+        if (!old) return old;
+        return old.map((c) =>
+          c.id === id ? { ...c, folder_id: folderId, sort_order: null } : c,
+        ) as ConversationRow[];
+      });
+    },
+    [qc],
+  );
 
   // Messages for active conversation
   const {
@@ -222,6 +377,9 @@ function ChatPage() {
       }
       const activeConversationId = activeConversationIdRef.current;
       const requestMode = modeRef.current;
+      // Resolve the temp id to the real id once known, so the assistant message
+      // is written against the real conversation (or migrated later if still temp).
+      const dbActiveConversationId = resolveConversationId(activeConversationId ?? "");
       if (isError || !activeConversationId) {
         console.warn(
           JSON.stringify({
@@ -232,7 +390,6 @@ function ChatPage() {
           }),
         );
         return;
-
       }
 
       const assistantMessage = completed
@@ -245,69 +402,113 @@ function ChatPage() {
           .map((p) => (p as { text: string }).text)
           .join("") ?? "";
 
+      // Finalize cross-device streaming: if `onChunk` already created the
+      // assistant row incrementally, flip `streaming` off and write the final
+      // content (+ server timestamp). Otherwise (e.g. a non-text response, or a
+      // path where streaming tracking was skipped) insert the row normally.
+      const streamingMsgId = streamingMsgIdRef.current;
+      const wasStreaming = streamingMsgId && !isOptimisticId(dbActiveConversationId);
+      streamingMsgIdRef.current = null;
+      streamingConvIdRef.current = null;
+      streamingContentRef.current = "";
+
       if (content.trim()) {
-        const assistantMessageId = crypto.randomUUID();
-        console.info(
-          JSON.stringify({
-            event: "supabase_insert_start",
-            table: "messages",
-            role: "assistant",
-            conversationId: activeConversationId,
-            messageId: assistantMessageId,
-            mode: requestMode,
-          }),
-        );
-        const { error: insertError } = await supabase.from("messages").insert({
-          id: assistantMessageId,
-          conversation_id: activeConversationId,
-          user_id: user.id,
-          role: "assistant",
-          content,
-          model: requestMode,
-        });
-        if (insertError) {
-          console.error(
-            JSON.stringify({
-              event: "supabase_insert_error",
-              table: "messages",
-              role: "assistant",
-              conversationId: activeConversationId,
-              messageId: assistantMessageId,
-              mode: requestMode,
-              error: insertError.message,
-            }),
-          );
-          setPersistenceError(insertError.message);
+        if (wasStreaming) {
+          const tag = createClientTag();
+          markClientTagSent(tag);
+          const { error: finErr } = await supabase
+            .from("messages")
+            .update({ content, streaming: false, client_tag: tag })
+            .eq("id", streamingMsgId!);
+          if (finErr) {
+            console.error(
+              JSON.stringify({
+                event: "supabase_stream_finish_error",
+                table: "messages",
+                role: "assistant",
+                conversationId: dbActiveConversationId,
+                messageId: streamingMsgId,
+                mode: requestMode,
+                error: finErr.message,
+              }),
+            );
+            setPersistenceError(finErr.message);
+          } else {
+            console.info(
+              JSON.stringify({
+                event: "supabase_stream_finish_success",
+                table: "messages",
+                role: "assistant",
+                conversationId: dbActiveConversationId,
+                messageId: streamingMsgId,
+                mode: requestMode,
+              }),
+            );
+          }
         } else {
+          const assistantMessageId = crypto.randomUUID();
           console.info(
             JSON.stringify({
-              event: "supabase_insert_success",
+              event: "supabase_insert_start",
               table: "messages",
               role: "assistant",
-              conversationId: activeConversationId,
+              conversationId: dbActiveConversationId,
               messageId: assistantMessageId,
               mode: requestMode,
             }),
           );
+          const { error: insertError } = await supabase.from("messages").insert({
+            id: assistantMessageId,
+            conversation_id: dbActiveConversationId,
+            user_id: user.id,
+            role: "assistant",
+            content,
+            model: requestMode,
+          });
+          if (insertError) {
+            console.error(
+              JSON.stringify({
+                event: "supabase_insert_error",
+                table: "messages",
+                role: "assistant",
+                conversationId: dbActiveConversationId,
+                messageId: assistantMessageId,
+                mode: requestMode,
+                error: insertError.message,
+              }),
+            );
+            setPersistenceError(insertError.message);
+          } else {
+            console.info(
+              JSON.stringify({
+                event: "supabase_insert_success",
+                table: "messages",
+                role: "assistant",
+                conversationId: dbActiveConversationId,
+                messageId: assistantMessageId,
+                mode: requestMode,
+              }),
+            );
+          }
         }
       }
       const { error: updateError } = await supabase
         .from("conversations")
         .update({ last_message_at: new Date().toISOString() })
-        .eq("id", activeConversationId);
+        .eq("id", dbActiveConversationId);
       if (updateError) {
         console.error(
           JSON.stringify({
             event: "supabase_update_error",
             table: "conversations",
-            conversationId: activeConversationId,
+            conversationId: dbActiveConversationId,
             error: updateError.message,
           }),
         );
         setPersistenceError(updateError.message);
       }
-        qc.invalidateQueries({ queryKey: ["conversations", user.id] });
-      qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+      qc.invalidateQueries({ queryKey: conversationsQueryKey });
+      qc.invalidateQueries({ queryKey: ["messages", dbActiveConversationId] });
     },
   });
 
@@ -353,38 +554,305 @@ function ChatPage() {
     return setMessages(...args);
   };
 
-  // Ensure a conversation exists, return its id
-  const ensureConversation = async (firstMessage: string): Promise<string> => {
-    if (conversationId) return conversationId;
-    const title = firstMessage.slice(0, 60) || "New conversation";
-    const { data, error } = await supabase
-      .from("conversations")
-      .insert({ user_id: user.id, title })
-      .select()
-      .single();
-    if (error) throw error;
-    console.info(
-      JSON.stringify({
-        event: "supabase_insert_success",
-        table: "conversations",
-        conversationId: data.id,
-        mode,
-      }),
+  // React Query key for the conversations list, kept in one place so the
+  // optimistic mutation and the query stay in sync.
+  const conversationsQueryKey = ["conversations", user.id] as const;
+
+  // Maps a temporary optimistic conversation id to the real Supabase id once the
+  // insert resolves. Used so that messages created *while* the conversation was
+  // still optimistic are written under the temp id, then transparently migrated
+  // to the real id — no message is ever lost.
+  const realIdByTempRef = useRef<Record<string, string>>({});
+
+  // Captures the first user message for a conversation that was optimistically
+  // created (either via `handleNewChat` + first send, or directly via submit),
+  // so `createConversation.onSuccess` can set its title, touch `last_message_at`,
+  // and generate a title once the real id exists — without `submit` duplicating
+  // that work.
+  const pendingFirstMessageRef = useRef<Record<string, string>>({});
+
+  // Resolves the id that should actually be used for Supabase writes: if the
+  // given id is still an optimistic placeholder whose real id is already known,
+  // return the real id; otherwise return the id unchanged.
+  const resolveConversationId = (id: string): string => {
+    return realIdByTempRef.current[id] ?? id;
+  };
+
+  // Re-parents any messages written under a temporary conversation id to the real
+  // one. Idempotent: safe to call multiple times. Returns the migrated count.
+  const migrateMessages = async (tempId: string, realId: string): Promise<void> => {
+    if (tempId === realId) return;
+    const { error } = await supabase
+      .from("messages")
+      .update({ conversation_id: realId })
+      .eq("conversation_id", tempId);
+    if (error) {
+      console.error(
+        JSON.stringify({
+          event: "supabase_migrate_messages_error",
+          table: "messages",
+          tempId,
+          realId,
+          error: error.message,
+        }),
+      );
+    }
+  };
+
+  // Ensures a conversation exists and returns its id **immediately** (without
+  // awaiting the network). If a conversation is already active (real or
+  // optimistic), its id is returned unchanged. Otherwise we kick off an
+  // optimistic create and return the temporary id right away, so the caller can
+  // start persisting the user's message against it while Supabase catches up.
+  const ensureConversation = (firstMessage: string): string => {
+    if (conversationId) {
+      // An optimistic conversation already exists (e.g. created by "New Chat").
+      // Remember its first message so onSuccess can finalize title/touch later.
+      if (isOptimisticId(conversationId)) {
+        pendingFirstMessageRef.current[conversationId] = firstMessage;
+      }
+      return conversationId;
+    }
+    return createConversationOptimistic(
+      firstMessage.slice(0, 60) || "New conversation",
+      firstMessage,
     );
-    setConversationIdTraced(data.id);
-    activeConversationIdRef.current = data.id;
-    qc.invalidateQueries({ queryKey: ["conversations", user.id] });
-    emitDashboardEvent("conversations");
-    return data.id;
+  };
+
+  // Optimistic conversation creation.
+  //
+  // The temporary conversation is injected into the cache immediately (inside
+  // `createConversationOptimistic`, so `ensureConversation`/`handleNewChat` return
+  // the temp id without awaiting). The mutation then performs the real insert and,
+  // on success, swaps the temp row for the real one in place.
+  //
+  // onMutate  - cancel in-flight refetches and snapshot the previous cache. The
+  //             optimistic row itself is inserted by the caller so the temp id is
+  //             available synchronously; onMutate only provides rollback context.
+  // onError   - restore the snapshot (removes the temporary row) and surface a
+  //             non-blocking toast; the optimistic id is cleared from selection.
+  // onSuccess - record the temp→real mapping, swap the temporary row for the real
+  //             Supabase record in the same array slot (no remount, no flicker),
+  //             migrate any messages written under the temp id, re-point selection
+  //             and refs at the real id, then refresh the list.
+  // onSettled - invalidate the list to reconcile with the server and emit the
+  //             dashboard event so other widgets stay consistent.
+  const createConversation = useMutation({
+    mutationFn: async ({
+      title,
+      tempId,
+      firstMessage,
+    }: {
+      title: string;
+      tempId: string;
+      firstMessage?: string;
+    }) => {
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      const { data, error } = await supabase
+        .from("conversations")
+        .insert({ user_id: user.id, title, client_tag: tag })
+        .select()
+        .single();
+      if (error) throw error;
+      return { row: data as ConversationRow, tempId, firstMessage };
+    },
+    onMutate: async () => {
+      // Cancel any outgoing refetch so it can't overwrite our optimistic value.
+      await qc.cancelQueries({ queryKey: conversationsQueryKey });
+      // Snapshot the previous value for rollback.
+      const previous = qc.getQueryData<ConversationRow[]>(conversationsQueryKey);
+      return { previous };
+    },
+    onError: (err, _vars, context) => {
+      // Rollback: restore the exact previous cache snapshot. If there was no
+      // previous data, clear the list entirely so no fake conversation lingers.
+      if (context?.previous) {
+        qc.setQueryData(conversationsQueryKey, context.previous);
+      } else {
+        qc.setQueryData(conversationsQueryKey, []);
+      }
+      // Remove the optimistic conversation from the cache if it is still present.
+      const tempId = _vars.tempId;
+      qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) =>
+        (old ?? []).filter((c) => c.id !== tempId),
+      );
+      delete realIdByTempRef.current[tempId];
+      // If the failed optimistic conversation was the active selection, reset it.
+      if (conversationId === tempId || activeConversationIdRef.current === tempId) {
+        startNewChat();
+      }
+      toast.error("Couldn't create the conversation. Please try again.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    },
+    onSuccess: async ({ row: realRow, tempId, firstMessage: firstMessageArg }) => {
+      // Record the mapping so any in-flight message writes resolve to the real id.
+      realIdByTempRef.current[tempId] = realRow.id;
+
+      // Swap the temporary id for the real one *in place* so React keeps the same
+      // list element key — no remount, no flicker, scroll position preserved.
+      qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) => {
+        if (!old) return [realRow];
+        return old.map((c) => (c.id === tempId ? realRow : c));
+      });
+
+      // Re-point selection and refs at the real id.
+      if (conversationId === tempId || activeConversationIdRef.current === tempId) {
+        setConversationIdTraced(realRow.id);
+        activeConversationIdRef.current = realRow.id;
+      }
+
+      // Migrate any messages that were already persisted under the temp id.
+      await migrateMessages(tempId, realRow.id);
+
+      // The first message may have been captured via the ref (e.g. the
+      // conversation was created by "New Chat" and the user's first send arrived
+      // before/after resolution). Prefer whichever is available.
+      const firstMessage = firstMessageArg ?? pendingFirstMessageRef.current[tempId];
+
+      // If this conversation was created from a first message, keep its title and
+      // last_message_at consistent once the real id exists.
+      if (firstMessage) {
+        const text = firstMessage.slice(0, 60) || "New conversation";
+        const { error: touchError } = await supabase
+          .from("conversations")
+          .update({
+            title: text,
+            last_message_at: new Date().toISOString(),
+          })
+          .eq("id", realRow.id);
+        if (!touchError) {
+          qc.invalidateQueries({ queryKey: conversationsQueryKey });
+          maybeGenerateTitle(realRow.id, firstMessage, text);
+        }
+      }
+
+      console.info(
+        JSON.stringify({
+          event: "supabase_insert_success",
+          table: "conversations",
+          conversationId: realRow.id,
+          mode,
+        }),
+      );
+
+      // If the user navigated away (or closed the tab) while this optimistic
+      // conversation was still being created, it is now an empty orphan in the
+      // database. Clean it up so empty "New Chat" rows don't accumulate. The
+      // authoritative emptiness check (DB user-message count) guarantees we never
+      // delete a conversation that actually has messages.
+      if (activeConversationIdRef.current !== realRow.id) {
+        void cleanupEmptyConversation(realRow.id);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: conversationsQueryKey });
+      emitDashboardEvent("conversations");
+    },
+  });
+
+  // Inserts the optimistic conversation into the cache and selects it, then fires
+  // the real insert in the background (non-blocking). Returns the temp id so the
+  // caller can associate messages with it immediately.
+  const createConversationOptimistic = (title: string, firstMessage?: string): string => {
+    const temp = createOptimisticConversation(user.id, title);
+    qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) => [temp, ...(old ?? [])]);
+    setConversationIdTraced(temp.id);
+    activeConversationIdRef.current = temp.id;
+    if (firstMessage) pendingFirstMessageRef.current[temp.id] = firstMessage;
+    createConversation.mutate({ title, tempId: temp.id, firstMessage });
+    return temp.id;
+  };
+
+  // --- Optimistic conversation-list cache helpers ---------------------------
+  //
+  // All sidebar mutations below write to the React Query cache *first* via
+  // `setQueryData` (instant UI), snapshot the prior value for rollback, then
+  // reconcile with the server on success. We never `invalidate` the whole list
+  // on success — instead we re-order/re-key the existing array in place so the
+  // sidebar never flashes, jumps, or loses selection/scroll.
+
+  // Apply a partial patch to one conversation row in the cached list, returning
+  // a NEW array (immutable update) so React re-renders only the affected row.
+  const patchConversation = (id: string, patch: Partial<ConversationRow>): void => {
+    qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) => {
+      if (!old) return old;
+      return old.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    });
+  };
+
+  // Move a conversation to the top of the cached list (newest-first), preserving
+  // everything else. Used the instant a message is sent so the chat jumps to the
+  // top of the sidebar without waiting for Supabase.
+  const moveConversationToTop = (id: string): void => {
+    qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) => {
+      if (!old) return old;
+      const target = old.find((c) => c.id === id);
+      if (!target) return old;
+      const now = new Date().toISOString();
+      // Optimistically bump last_message_at so the time-bucket + order update
+      // immediately; the server's real timestamp replaces it on reconcile.
+      const bumped = { ...target, last_message_at: now };
+      return [bumped, ...old.filter((c) => c.id !== id)];
+    });
   };
 
   const renameMutation = useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) => {
-      const { error } = await supabase.from("conversations").update({ title }).eq("id", id);
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      const { error } = await supabase
+        .from("conversations")
+        .update({ title, client_tag: tag })
+        .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["conversations", user.id] }),
+    onMutate: async ({ id, title }) => {
+      await qc.cancelQueries({ queryKey: conversationsQueryKey });
+      const previous = qc.getQueryData<ConversationRow[]>(conversationsQueryKey);
+      // Instant title change in the sidebar.
+      patchConversation(id, { title });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(conversationsQueryKey, context.previous);
+      toast.error("Couldn't rename conversation.");
+    },
+    // Reconcile only the affected query; no full invalidation.
+    onSuccess: (_d, { id }) => {
+      qc.invalidateQueries({ queryKey: conversationsQueryKey, exact: true });
+      if (id === resolveConversationId(conversationId ?? "")) {
+        qc.invalidateQueries({ queryKey: ["messages", id] });
+      }
+    },
   });
+
+  // Generate a title for a conversation at most once, using the first meaningful
+  // user prompt, and persist it via the existing rename mutation. Never
+  // overwrites a conversation that has already been renamed (non-default title).
+  // Failures are logged and swallowed so the conversation stays usable.
+  const maybeGenerateTitle = (convId: string, userPrompt: string, storedTitle: string) => {
+    if (titleGeneratedForRef.current === convId) return;
+    if (!shouldGenerateTitle(storedTitle)) {
+      titleGeneratedForRef.current = convId;
+      return;
+    }
+    const generated = generateChatTitle(userPrompt);
+    if (!generated) return; // greetings only — keep default, retry on next prompt
+    titleGeneratedForRef.current = convId;
+    renameMutation.mutateAsync({ id: convId, title: generated }).catch((err: unknown) => {
+      console.error(
+        JSON.stringify({
+          event: "chat_title_generate_error",
+          conversationId: convId,
+          error: err instanceof Error ? err.message : "Failed to generate title",
+        }),
+      );
+      // Allow a later attempt if persistence failed.
+      if (titleGeneratedForRef.current === convId) titleGeneratedForRef.current = null;
+    });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -396,29 +864,203 @@ function ChatPage() {
       const { error } = await supabase.from("conversations").delete().eq("id", id);
       if (error) throw error;
     },
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: conversationsQueryKey });
+      const previous = qc.getQueryData<ConversationRow[]>(conversationsQueryKey);
+      // Remove instantly from the sidebar. Also drop the cached message list so
+      // re-opening never flashes stale data.
+      qc.setQueryData<ConversationRow[]>(conversationsQueryKey, (old) =>
+        (old ?? []).filter((c) => c.id !== id),
+      );
+      qc.removeQueries({ queryKey: ["messages", id] });
+      return { previous, id };
+    },
+    onError: (_err, id, context) => {
+      // Rollback only server state; keep UI responsive.
+      if (context?.previous) qc.setQueryData(conversationsQueryKey, context.previous);
+      toast.error("Couldn't delete conversation.", {
+        description: "Tap to retry.",
+        action: {
+          label: "Retry",
+          onClick: () => deleteMutation.mutate(id),
+        },
+      });
+    },
     onSuccess: (_d, id) => {
-      qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+      // Reconcile the single affected list; no full invalidation.
+      qc.invalidateQueries({ queryKey: conversationsQueryKey, exact: true });
       if (id === conversationId) startNewChat();
     },
   });
 
+  // Pin / unpin. Optimistic: the row flips `pinned` + `pinned_at` immediately so
+  // the conversation jumps to/ from the PINNED section without a network wait.
+  const pinMutation = useMutation({
+    mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      const { error } = await supabase
+        .from("conversations")
+        .update({ pinned, pinned_at: pinned ? new Date().toISOString() : null, client_tag: tag })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, pinned }) => {
+      await qc.cancelQueries({ queryKey: conversationsQueryKey });
+      const previous = qc.getQueryData<ConversationRow[]>(conversationsQueryKey);
+      patchConversation(id, {
+        pinned,
+        pinned_at: pinned ? new Date().toISOString() : null,
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(conversationsQueryKey, context.previous);
+      toast.error("Couldn't update pin.");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: conversationsQueryKey, exact: true });
+    },
+  });
+
+  // Favorite / unfavorite. Optimistic star toggle in the sidebar.
+  const favoriteMutation = useMutation({
+    mutationFn: async ({ id, favorite }: { id: string; favorite: boolean }) => {
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      const { error } = await supabase
+        .from("conversations")
+        .update({ favorite, client_tag: tag })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, favorite }) => {
+      await qc.cancelQueries({ queryKey: conversationsQueryKey });
+      const previous = qc.getQueryData<ConversationRow[]>(conversationsQueryKey);
+      patchConversation(id, { favorite });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(conversationsQueryKey, context.previous);
+      toast.error("Couldn't update favorite.");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: conversationsQueryKey, exact: true });
+    },
+  });
+
+  // Optimistically write a single user message into the cached message list for
+  // a conversation, so the preview/ordering feel instant. Used as a complementary
+  // cache update alongside the Supabase insert; reconciled via invalidate on
+  // success and rolled back (by refetch) on error.
+  const optimisticUpsertMessage = (message: CachedMessageRow): void => {
+    const key = ["messages", message.conversation_id] as const;
+    qc.setQueryData<CachedMessageRow[]>(key, (old) => {
+      const existing = old ?? [];
+      if (existing.some((m) => m.id === message.id)) return existing;
+      return [...existing, message];
+    });
+  };
+
+  // Counts the real user messages persisted for a conversation. This is the
+  // authoritative emptiness check (unlike local `messages` state) and is safe
+  // across multiple tabs: it reads the database directly, so a conversation that
+  // has messages in another tab is never wrongly deleted here.
+  const countUserMessages = async (id: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", id)
+      .eq("role", "user");
+    if (error) throw error;
+    return count ?? 0;
+  };
+
+  // ChatGPT-style automatic cleanup of empty conversations. A conversation is
+  // "empty" (and therefore discardable) only when it has zero persisted user
+  // messages. It is NEVER deleted while the assistant is streaming, and never
+  // deleted if the user has manually renamed it (non-default title). Failures are
+  // swallowed and logged — the conversation is always kept on error.
+  //
+  // Returns the real id that was deleted (for chaining) or null if no deletion
+  // happened, so callers can avoid redundant work.
+  const cleanupEmptyConversation = async (id: string | null): Promise<string | null> => {
+    if (!id) return null;
+    // Optimistic temp ids have no database row yet; nothing to clean up here.
+    // (An empty conversation that was *created* optimistically is handled once
+    // its real id lands — see `createConversation.onSuccess`.)
+    if (isOptimisticId(id)) return null;
+    // Never delete a conversation whose assistant reply is still in flight.
+    if (isAssistantStreamingRef.current) return null;
+    // Protect manually renamed conversations (they carry a real, non-default title).
+    const row = qc.getQueryData<ConversationRow[]>(conversationsQueryKey)?.find((c) => c.id === id);
+    if (row && !isDefaultTitle(row.title)) return null;
+    try {
+      const userCount = await countUserMessages(id);
+      if (userCount > 0) return null; // has at least one real user message → keep
+      await deleteMutation.mutateAsync(id).catch((err: unknown) => {
+        console.error(
+          JSON.stringify({
+            event: "conversation_cleanup_error",
+            conversationId: id,
+            error: err instanceof Error ? err.message : "Failed to clean up conversation",
+          }),
+        );
+      });
+      return id;
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: "conversation_cleanup_count_error",
+          conversationId: id,
+          error: err instanceof Error ? err.message : "Failed to count messages",
+        }),
+      );
+      return null;
+    }
+  };
+
+  // Leaves the given conversation, cleaning it up first if it is empty. Used
+  // whenever the user switches away from a conversation (New Chat / open another).
+  const leaveConversation = (id: string | null) => {
+    if (!id) return;
+    void cleanupEmptyConversation(id);
+  };
+
+  // Pure reset of chat state. Used internally for rollback (a failed optimistic
+  // create) and when the active conversation is deleted. It intentionally does
+  // NOT create a new conversation — see `handleNewChat` for that.
   const startNewChat = () => {
+    // Clean up the conversation we are leaving (if it is empty) before resetting.
+    leaveConversation(activeConversationIdRef.current);
     setPersistenceError(null);
     setSavingMessage(false);
     setPendingInitialSend(null);
     setPendingEvent(null);
     setConversationIdTraced(null);
     activeConversationIdRef.current = null;
+    titleGeneratedForRef.current = null;
     setMessagesTraced([]);
+  };
+
+  // "New Chat" button handler. Resets the composer state and optimistically
+  // creates a conversation so it appears in the sidebar and becomes the active
+  // selection instantly, before Supabase responds.
+  const handleNewChat = () => {
+    startNewChat();
+    createConversationOptimistic("New Chat");
   };
 
   const loadConversation = (id: string) => {
     console.log("[TRANSITION] loadConversation", { id, at: Date.now() });
+    // Clean up the conversation we are switching away from (if it is empty).
+    leaveConversation(activeConversationIdRef.current);
     setPersistenceError(null);
     setPendingInitialSend(null);
     setPendingEvent(null);
     setConversationIdTraced(id);
     activeConversationIdRef.current = id;
+    titleGeneratedForRef.current = null;
     justLoadedRef.current = true; // signal the once-only sync effect to load stored messages
     setMessagesTraced([]); // will be replaced by initialMessages once query loads
   };
@@ -444,11 +1086,165 @@ function ChatPage() {
     sendToAI(userMessage, conversationId, isNewConversation);
   };
 
+  // Convert a cached/stored DB message row into the UIMessage shape used by the
+  // in-memory `useChat` message list. Shared by the realtime merge + load path.
+  const dbRowToUIMessage = (row: { id: string; role: string; content: string }): UIMessage => ({
+    id: row.id,
+    role: row.role as "user" | "assistant",
+    parts: [{ type: "text", text: row.content }],
+  });
+
+  // Track whether the user is pinned to the bottom of the scroll area. Used to
+  // decide between auto-scrolling (they're following along) and showing a
+  // "New messages" button (they're reading older content). Never steal scroll.
+  const updateAtBottom = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    atBottomRef.current = distance <= STICK_BOTTOM_THRESHOLD;
+    if (atBottomRef.current) setShowNewMessages(false);
+  };
+
   useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateAtBottom, { passive: true });
+    return () => el.removeEventListener("scroll", updateAtBottom);
+  }, []);
+
+  // Auto-scroll on local changes ONLY when the user is already near the bottom.
+  useEffect(() => {
+    if (atBottomRef.current) {
+      scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+    } else if (messages.length > 0) {
+      setShowNewMessages(true);
+    }
   }, [messages, status]);
 
+  // ---- Cross-device live message sync -------------------------------------
+  // Subscribes to realtime message events for the ACTIVE conversation only
+  // (reuses the single shared websocket). For each remote row we merge it into
+  // the live `useChat` message list so streaming tokens and new messages appear
+  // elsewhere on this device instantly, without re-fetching or recreating the
+  // list. Local (self) echoes are already dropped by the client-tag layer, so
+  // this only applies genuinely remote changes.
+  useMessageRealtime(conversationId, (event) => {
+    if (event.eventType === "DELETE") {
+      const id = event.old?.["id"] as string | undefined;
+      if (id) setMessagesTraced((prev) => prev.filter((m) => m.id !== id));
+      return;
+    }
+    const row = event.new as {
+      id: string;
+      role: string;
+      content: string;
+      streaming?: boolean;
+    } | null;
+    if (!row) return;
+    const uiMessage = dbRowToUIMessage(row);
+    setMessagesTraced((prev) => {
+      const idx = prev.findIndex((m) => m.id === row.id);
+      if (idx >= 0) {
+        // Update existing (streaming token append or edit) in place.
+        const next = prev.slice();
+        next[idx] = { ...next[idx], ...uiMessage };
+        return next;
+      }
+      // Append new remote message, keeping chronological order by id stability.
+      return [...prev, uiMessage];
+    });
+    // If the user is following along, keep them pinned; otherwise prompt.
+    if (!atBottomRef.current && row.role === "assistant") {
+      setShowNewMessages(true);
+    }
+  });
+
+  const scrollToBottom = () => {
+    atBottomRef.current = true;
+    setShowNewMessages(false);
+    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+  };
+
   const busy = savingMessage || status === "submitted" || status === "streaming";
+
+  // Cross-device streaming persistence. As the assistant streams on THIS device,
+  // we keep its Supabase row updated so OTHER devices render the same tokens in
+  // real time (they receive the realtime UPDATEs). We watch the live `messages`
+  // array (the source of truth for rendering) and diff the streaming assistant
+  // message: INSERT once on first sight, UPDATE with each new content length.
+  // `useChat` does not expose a chunk callback, so deriving deltas from the
+  // rendered message list is the robust, type-safe path. The originating
+  // device's own writes are self-suppressed (client_tag), so they never
+  // double-apply to the local React Query cache.
+  useEffect(() => {
+    const convId = resolveConversationId(activeConversationIdRef.current ?? "");
+    if (!convId || isOptimisticId(convId)) return;
+    const last = messages[messages.length - 1];
+    const isStreaming = status === "streaming" || status === "submitted";
+    if (!last || last.role !== "assistant" || !isStreaming) return;
+    const content = getMessageText(last);
+    if (!content) return;
+
+    if (!streamingMsgIdRef.current) {
+      const msgId = crypto.randomUUID();
+      streamingMsgIdRef.current = msgId;
+      streamingConvIdRef.current = convId;
+      streamingContentRef.current = content; // track last persisted content
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      void supabase
+        .from("messages")
+        .insert({
+          id: msgId,
+          conversation_id: convId,
+          user_id: user.id,
+          role: "assistant",
+          content,
+          model: modeRef.current,
+          streaming: true,
+          client_tag: tag,
+        })
+        .then(({ error: insertError }) => {
+          if (insertError) {
+            console.error(
+              JSON.stringify({
+                event: "supabase_stream_insert_error",
+                table: "messages",
+                conversationId: convId,
+                messageId: msgId,
+                error: insertError.message,
+              }),
+            );
+          } else {
+            void supabase
+              .from("conversations")
+              .update({ last_message_at: new Date().toISOString() })
+              .eq("id", convId);
+          }
+        });
+    } else if (content !== streamingContentRef.current) {
+      streamingContentRef.current = content;
+      const tag = createClientTag();
+      markClientTagSent(tag);
+      const msgId = streamingMsgIdRef.current;
+      void supabase
+        .from("messages")
+        .update({ content, client_tag: tag })
+        .eq("id", msgId)
+        .then(({ error: updErr }) => {
+          if (updErr) {
+            console.error(
+              JSON.stringify({
+                event: "supabase_stream_update_error",
+                table: "messages",
+                messageId: msgId,
+                error: updErr.message,
+              }),
+            );
+          }
+        });
+    }
+  }, [messages, status]);
 
   // Sync the messages loaded from Supabase into the chat when a conversation is
   // opened from the sidebar. This must run EXACTLY ONCE per opened conversation,
@@ -535,6 +1331,72 @@ function ChatPage() {
     return text;
   };
 
+  // Run memory detection on the user's message and either auto-save or queue a
+  // confirmation prompt, according to the user's memory settings. Runs after the
+  // message has already been persisted so detection never blocks sending.
+  const processMemoryDetection = (
+    text: string,
+    userMessage: UIMessage,
+    conversationId: string,
+    isNewConversation: boolean,
+  ) => {
+    const settings = memorySettings;
+    // Memory disabled entirely → never detect.
+    if (settings && settings.memory_enabled === false) return;
+    // Nothing to remember if it's sensitive.
+    if (detectSensitive(text)) return;
+
+    const detected = detectMemories(text);
+    if (detected.length === 0) return;
+
+    const novel = detected.filter((d) => !memoryExists(memories, d.content));
+    if (novel.length === 0) return;
+
+    const threshold = settings?.confidence_threshold ?? 0.65;
+    const autoSave = settings?.auto_save ?? true;
+    const askBefore = settings?.ask_before_save ?? true;
+
+    const toSave = novel.filter((d) => d.confidence >= threshold);
+    const toAsk = novel.filter((d) => d.confidence < threshold);
+
+    for (const d of toSave) {
+      if (autoSave) {
+        void saveDetected.mutateAsync(d).catch(() => {
+          /* swallow — memory is best-effort */
+        });
+      } else if (askBefore) {
+        toAsk.push(d);
+      }
+    }
+
+    if (toAsk.length > 0) {
+      setPendingMemories({ detected: toAsk, userMessage, conversationId, isNewConversation });
+    }
+  };
+
+  const resolvePendingMemories = (accept: boolean) => {
+    if (!pendingMemories) return;
+    if (accept) {
+      for (const d of pendingMemories.detected) {
+        void addMemory
+          .mutateAsync({
+            content: d.content,
+            category: d.category,
+            confidence: d.confidence,
+            source: "auto",
+          })
+          .catch(() => {});
+      }
+    }
+    setPendingMemories(null);
+    // Continue sending the original message to the AI.
+    sendToAI(
+      pendingMemories.userMessage,
+      pendingMemories.conversationId,
+      pendingMemories.isNewConversation,
+    );
+  };
+
   const submit = async (payload: ChatSubmitPayload) => {
     const text = await buildMessageText(payload);
     if (!text.trim() || busy) return;
@@ -542,14 +1404,22 @@ function ChatPage() {
     const isNewConversation = !conversationId;
     setSavingMessage(true);
     try {
-      const convId = await ensureConversation(text);
+      // Returns immediately (optimistic temp id or existing real id) — no network
+      // wait, so the user message can be persisted without blocking.
+      const convId = ensureConversation(text);
       activeConversationIdRef.current = convId;
+      // The id used for DB writes: resolves a temp id to its real id once known, so
+      // we never write against a non-existent row if the create has already landed.
+      const dbConvId = resolveConversationId(convId);
+      const isOptimistic = isOptimisticId(convId);
       console.info(
         JSON.stringify({
           event: "chat_submit",
           conversationId: convId,
+          dbConversationId: dbConvId,
           mode,
           isNewConversation,
+          isOptimistic,
         }),
       );
       const userMsgId = crypto.randomUUID();
@@ -558,23 +1428,44 @@ function ChatPage() {
         role: "user",
         parts: [{ type: "text", text }],
       };
+
+      // --- Instant sidebar feedback (no network wait) -----------------------
+      // 1) Move the conversation to the top of the list right away.
+      moveConversationToTop(dbConvId);
+      // 2) Optimistically insert the user message into the cached message list
+      //    for this conversation so previews/ordering update immediately.
+      optimisticUpsertMessage({
+        id: userMsgId,
+        conversation_id: dbConvId,
+        user_id: user.id,
+        role: "user",
+        content: text,
+        model: mode,
+        created_at: new Date().toISOString(),
+      });
+
       console.info(
         JSON.stringify({
           event: "supabase_insert_start",
           table: "messages",
           role: "user",
-          conversationId: convId,
+          conversationId: dbConvId,
           messageId: userMsgId,
           mode,
         }),
       );
       const { error: insertError } = await supabase.from("messages").insert({
         id: userMsgId,
-        conversation_id: convId,
+        conversation_id: dbConvId,
         user_id: user.id,
         role: "user",
         content: text,
         model: mode,
+        client_tag: (() => {
+          const t = createClientTag();
+          markClientTagSent(t);
+          return t;
+        })(),
       });
       if (insertError) {
         console.error(
@@ -582,7 +1473,7 @@ function ChatPage() {
             event: "supabase_insert_error",
             table: "messages",
             role: "user",
-            conversationId: convId,
+            conversationId: dbConvId,
             messageId: userMsgId,
             mode,
             error: insertError.message,
@@ -595,27 +1486,38 @@ function ChatPage() {
           event: "supabase_insert_success",
           table: "messages",
           role: "user",
-          conversationId: convId,
+          conversationId: dbConvId,
           messageId: userMsgId,
           mode,
         }),
       );
-      const { error: touchError } = await supabase
-        .from("conversations")
-        .update({ last_message_at: new Date().toISOString() })
-        .eq("id", convId);
-      if (touchError) {
-        console.error(
-          JSON.stringify({
-            event: "supabase_update_error",
-            table: "conversations",
-            conversationId: convId,
-            error: touchError.message,
-          }),
-        );
-        throw touchError;
+      // For an existing (non-optimistic) conversation, finalize title/touch here.
+      // For an optimistic one, `createConversation.onSuccess` does this once the
+      // real id exists (and migrates the message we just wrote under the temp id).
+      if (!isOptimistic) {
+        const existing = conversations.find((c) => c.id === convId);
+        maybeGenerateTitle(convId, text, existing ? existing.title : "");
+        const { error: touchError } = await supabase
+          .from("conversations")
+          .update({ last_message_at: new Date().toISOString() })
+          .eq("id", convId);
+        if (touchError) {
+          console.error(
+            JSON.stringify({
+              event: "supabase_update_error",
+              table: "conversations",
+              conversationId: convId,
+              error: touchError.message,
+            }),
+          );
+          throw touchError;
+        }
       }
-      qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+      // Reconcile: refresh the affected message list and the exact conversation
+      // list so the real server timestamps replace the optimistic ones. We do
+      // NOT blanket-invalidate other queries.
+      qc.invalidateQueries({ queryKey: ["messages", dbConvId], exact: true });
+      qc.invalidateQueries({ queryKey: conversationsQueryKey, exact: true });
 
       // Detect calendar event in user message — confirm before persisting.
       const detected = detectCalendarEvent(text);
@@ -624,6 +1526,10 @@ function ChatPage() {
         setSavingMessage(false);
         return;
       }
+
+      // Long-Term Memory: detect anything worth remembering and react per the
+      // user's memory settings (auto-save or ask). This does NOT block sending.
+      processMemoryDetection(text, userMessage, convId, isNewConversation);
 
       sendToAI(userMessage, convId, isNewConversation);
     } catch (err) {
@@ -634,7 +1540,17 @@ function ChatPage() {
         }),
       );
       setSavingMessage(false);
-      setPersistenceError(err instanceof Error ? err.message : "Failed to save this message.");
+      // Keep the user's message visible (only server state is rolled back via a
+      // targeted refetch). Surface a retry so the user can resend.
+      const message = err instanceof Error ? err.message : "Failed to save this message.";
+      setPersistenceError(message);
+      toast.error("Couldn't save conversation.", {
+        description: message,
+        action: {
+          label: "Retry",
+          onClick: () => void submit(payload),
+        },
+      });
     }
   };
 
@@ -781,70 +1697,110 @@ function ChatPage() {
   };
 
   return (
-    <AppShell>
-      <div className="flex h-[calc(100svh-9.25rem)] min-h-0 gap-3 md:h-[calc(100vh-7rem)] md:gap-4">
-        {sidebarOpen && (
-          <div className="hidden w-72 flex-shrink-0 lg:block">
-            <ChatSidebar
-              currentId={conversationId}
-              onSelect={loadConversation}
-              onNew={startNewChat}
-              onDelete={(id) => deleteMutation.mutate(id)}
-              onRename={(id, title) => renameMutation.mutate({ id, title })}
-              conversations={conversations}
-            />
-          </div>
-        )}
-
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-w-0 items-center gap-2 px-1 pb-2">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden rounded-md border border-border/60 bg-background/40 p-2 text-muted-foreground transition hover:text-primary lg:block"
-              aria-label="Toggle sidebar"
-            >
-              <LayoutPanelLeft className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div
-            ref={scrollerRef}
-            aria-live="polite"
-            className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-6"
-          >
-            <div className="mx-auto flex w-full max-w-[860px] flex-col">
-              <ChatErrorBoundary>{renderMessages()}</ChatErrorBoundary>
+    <>
+      <AppShell>
+        <div className="flex h-[calc(100svh-9.25rem)] min-h-0 gap-3 md:h-[calc(100vh-7rem)] md:gap-4">
+          {sidebarOpen && (
+            <div className="hidden w-72 flex-shrink-0 lg:block">
+              <FolderSidebar
+                userId={user.id}
+                conversationsQueryKey={conversationsQueryKey}
+                conversations={conversationsWithFolder}
+                currentId={conversationId}
+                onSelect={loadConversation}
+                onNew={handleNewChat}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onRename={(id, title) => renameMutation.mutate({ id, title })}
+                onPin={(id, pinned) => pinMutation.mutate({ id, pinned })}
+                onFavorite={(id, favorite) => favoriteMutation.mutate({ id, favorite })}
+                patchConversationFolder={patchConversationFolder}
+              />
             </div>
-          </div>
-
-          {pendingEvent && (
-            <EventConfirmPrompt
-              detected={pendingEvent.detected}
-              onConfirm={() => resolvePendingEvent(true)}
-              onDecline={() => resolvePendingEvent(false)}
-            />
           )}
 
-          <div className="shrink-0 px-3 py-3 md:px-4">
-            <div className="mx-auto w-full max-w-[860px]">
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSend={submit}
-                onStop={stop}
-                streaming={streaming}
-                disabled={savingMessage}
-                mode={mode}
-                onModeChange={(m) => {
-                  setMode(m);
-                  emitDashboardEvent("ai");
-                }}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-w-0 items-center gap-2 px-1 pb-2">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="hidden rounded-md border border-border/60 bg-background/40 p-2 text-muted-foreground transition hover:text-primary lg:block"
+                aria-label="Toggle sidebar"
+              >
+                <LayoutPanelLeft className="h-4 w-4" />
+              </button>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <h1 className="truncate text-sm font-semibold text-foreground">
+                  {conversations.find((c) => c.id === conversationId)?.title || "New conversation"}
+                </h1>
+                <ShareButton
+                  userId={user.id}
+                  conversationId={conversationId}
+                  conversationTitle={
+                    conversations.find((c) => c.id === conversationId)?.title ?? "New conversation"
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div
+                ref={scrollerRef}
+                aria-live="polite"
+                className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-6"
+              >
+                <div className="mx-auto flex w-full max-w-[860px] flex-col">
+                  <ChatErrorBoundary>{renderMessages()}</ChatErrorBoundary>
+                </div>
+              </div>
+
+              {showNewMessages && (
+                <button
+                  onClick={scrollToBottom}
+                  className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-primary/40 bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90"
+                  aria-label="Scroll to latest messages"
+                >
+                  ↓ New messages
+                </button>
+              )}
+            </div>
+
+            {pendingEvent && (
+              <EventConfirmPrompt
+                detected={pendingEvent.detected}
+                onConfirm={() => resolvePendingEvent(true)}
+                onDecline={() => resolvePendingEvent(false)}
               />
+            )}
+
+            {pendingMemories && (
+              <MemoryConfirmPrompt
+                detected={pendingMemories.detected}
+                onConfirm={() => resolvePendingMemories(true)}
+                onDecline={() => resolvePendingMemories(false)}
+              />
+            )}
+
+            <div className="shrink-0 px-3 py-3 md:px-4">
+              <div className="mx-auto w-full max-w-[860px]">
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSend={submit}
+                  onStop={stop}
+                  streaming={streaming}
+                  disabled={savingMessage}
+                  mode={mode}
+                  onModeChange={(m) => {
+                    setMode(m);
+                    emitDashboardEvent("ai");
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </AppShell>
+      </AppShell>
+      <Toaster />
+    </>
   );
 }
 
@@ -968,6 +1924,56 @@ function EventConfirmPrompt({
               className="rounded-md border border-border/60 bg-background/40 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
             >
               No
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MemoryConfirmPrompt({
+  detected,
+  onConfirm,
+  onDecline,
+}: {
+  detected: DetectedMemory[];
+  onConfirm: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="mx-auto mt-3 w-full max-w-[860px]">
+      <div className="rounded-lg border border-[color:var(--hud)]/30 bg-[color:var(--hud)]/10 p-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              {detected.length === 1
+                ? "I think this is worth remembering."
+                : `I think these ${detected.length} things are worth remembering.`}
+            </p>
+            <ul className="mt-1 space-y-1">
+              {detected.map((d, i) => (
+                <li key={i} className="text-xs text-muted-foreground">
+                  <span className="mr-1 inline-flex rounded bg-[color:var(--hud)]/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--hud)]">
+                    {d.category}
+                  </span>
+                  {d.content}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={onConfirm}
+              className="rounded-md bg-[color:var(--hud)] px-3 py-1.5 text-xs font-semibold text-[color:var(--background)] transition hover:opacity-90"
+            >
+              Remember
+            </button>
+            <button
+              onClick={onDecline}
+              className="rounded-md border border-border/60 bg-background/40 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              Not now
             </button>
           </div>
         </div>

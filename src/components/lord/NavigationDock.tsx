@@ -9,6 +9,7 @@ import {
   FileText,
   Settings,
   ChevronRight,
+  BarChart3,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ const NAV = [
   { to: "/study", label: "Study", icon: GraduationCap },
   { to: "/tasks", label: "Tasks", icon: Target },
   { to: "/documents", label: "Documents", icon: FileText },
+  { to: "/statistics", label: "Statistics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
