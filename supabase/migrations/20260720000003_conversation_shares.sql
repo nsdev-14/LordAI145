@@ -24,12 +24,9 @@ CREATE TABLE IF NOT EXISTS public.conversation_shares (
   is_public    BOOLEAN NOT NULL DEFAULT true,
   UNIQUE (conversation_id)
 );
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.conversation_shares TO authenticated;
 GRANT ALL ON public.conversation_shares TO service_role;
-
 ALTER TABLE public.conversation_shares ENABLE ROW LEVEL SECURITY;
-
 -- Create / read / update / delete shares only for the owner's own shares.
 CREATE POLICY "Users manage their own conversation shares"
   ON public.conversation_shares
@@ -37,7 +34,6 @@ CREATE POLICY "Users manage their own conversation shares"
   TO authenticated
   USING (auth.uid() = created_by)
   WITH CHECK (auth.uid() = created_by);
-
 -- A created share must point at a conversation the creator owns. This blocks
 -- sharing someone else's conversation even if a foreign conversation_id is sent.
 CREATE POLICY "Share targets only own conversations"
@@ -50,13 +46,10 @@ CREATE POLICY "Share targets only own conversations"
       WHERE c.id = conversation_id AND c.user_id = auth.uid()
     )
   );
-
 CREATE INDEX IF NOT EXISTS conversation_shares_token_idx
   ON public.conversation_shares (share_token);
-
 CREATE INDEX IF NOT EXISTS conversation_shares_conv_idx
   ON public.conversation_shares (conversation_id);
-
 -- Public, read-only accessor for a shared conversation. SECURITY DEFINER so it
 -- runs with the function owner's privileges and BYPASSES row-level security on
 -- conversations/messages. It performs its own checks:

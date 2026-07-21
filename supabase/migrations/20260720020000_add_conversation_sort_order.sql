@@ -4,6 +4,5 @@
 -- Legacy rows default to NULL and are treated as "newest first" (see app logic).
 ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS sort_order INTEGER;
-
 CREATE INDEX IF NOT EXISTS conversations_user_folder_sort_idx
   ON public.conversations (user_id, folder_id, sort_order);

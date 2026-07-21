@@ -16,7 +16,6 @@ BEGIN
     ALTER TABLE public.messages RENAME COLUMN chat_id TO conversation_id;
   END IF;
 END $$;
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -29,9 +28,7 @@ BEGIN
       RENAME CONSTRAINT messages_chat_id_fkey TO messages_conversation_id_fkey;
   END IF;
 END $$;
-
 ALTER INDEX IF EXISTS messages_chat_created_idx RENAME TO messages_conversation_created_idx;
-
 DROP POLICY IF EXISTS "Users manage their own messages" ON public.messages;
 CREATE POLICY "Users manage their own messages"
   ON public.messages

@@ -25,7 +25,6 @@
 -- 1. Add a `streaming` flag to messages (false for historical rows).
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS streaming BOOLEAN NOT NULL DEFAULT false;
-
 -- 2. Add a stable client-generated tag to conversations + messages so the
 --    originating device can ignore its OWN realtime echoes (self-suppression).
 --    `client_tag` is set on writes; the realtime listener drops events whose
@@ -34,10 +33,8 @@ ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS client_tag TEXT;
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS client_tag TEXT;
-
 CREATE INDEX IF NOT EXISTS messages_conversation_streaming_idx
   ON public.messages (conversation_id, streaming);
-
 -- 3. Enable Realtime by adding the tables to the supabase_realtime publication.
 --    `IF NOT EXISTS` guards make this idempotent / re-runnable.
 DO $$
@@ -62,7 +59,6 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
   END IF;
 END $$;
-
 -- 4. Realtime replay respects RLS only when row security is enforced on the
 --    publication. Ensure the tables are RLS-enabled (they already are, but be
 --    explicit so this migration is self-contained).

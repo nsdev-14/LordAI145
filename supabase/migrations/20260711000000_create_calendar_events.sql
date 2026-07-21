@@ -18,22 +18,17 @@ CREATE TABLE public.calendar_events (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   completed BOOLEAN NOT NULL DEFAULT false
 );
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_events TO authenticated;
 GRANT ALL ON public.calendar_events TO service_role;
-
 ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Users manage their own calendar events"
   ON public.calendar_events
   FOR ALL
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
-
 CREATE INDEX calendar_events_user_id_date_idx ON public.calendar_events (user_id, date);
 CREATE INDEX calendar_events_user_id_completed_idx ON public.calendar_events (user_id, completed);
-
 CREATE TRIGGER set_calendar_events_updated_at
   BEFORE UPDATE ON public.calendar_events
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

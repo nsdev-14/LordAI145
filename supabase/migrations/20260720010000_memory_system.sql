@@ -23,7 +23,6 @@ ALTER TABLE public.memories
   ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual',
   ADD COLUMN IF NOT EXISTS embedding JSONB,
   ADD COLUMN IF NOT EXISTS client_tag TEXT;
-
 -- Try to add a real vector column for true ANN search. If pgvector is not
 -- installed this block is skipped and the app falls back to JSONB + client-side
 -- cosine similarity (see src/lib/memory/embeddings.ts). Do NOT fail the whole
@@ -51,14 +50,12 @@ EXCEPTION WHEN OTHERS THEN
   -- pgvector unavailable or blocked — keep JSONB path. Log and continue.
   RAISE NOTICE 'pgvector not available, using JSONB embeddings: %', SQLERRM;
 END $$;
-
 CREATE INDEX IF NOT EXISTS memories_user_created_idx
   ON public.memories (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS memories_user_pinned_idx
   ON public.memories (user_id, pinned DESC, created_at DESC);
 CREATE INDEX IF NOT EXISTS memories_user_category_idx
   ON public.memories (user_id, category);
-
 -- 2. memory_settings table ----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.memory_settings (
   user_id              UUID PRIMARY KEY,
@@ -68,19 +65,15 @@ CREATE TABLE IF NOT EXISTS public.memory_settings (
   confidence_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.65,
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.memory_settings TO authenticated;
 GRANT ALL ON public.memory_settings TO service_role;
-
 ALTER TABLE public.memory_settings ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Users manage their own memory settings"
   ON public.memory_settings
   FOR ALL
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
-
 -- 3. Re-point memories RLS to be explicit and add the client-level safety net.
 --    The existing memories table already has RLS; tighten it so every operation
 --    is scoped to the owner. If a policy of the same name already exists, drop
@@ -92,7 +85,6 @@ CREATE POLICY "Users manage their own memories"
   TO authenticated
   USING (auth.uid()::text = user_id::text)
   WITH CHECK (auth.uid()::text = user_id::text);
-
 -- 4. Embedding search helper (used by the API route for fast semantic retrieval).
 --    Falls back gracefully: if embedding_vec is present we use cosine distance,
 --    otherwise the caller falls back to client-side ranking. Marked SECURITY
@@ -152,7 +144,6 @@ BEGIN
   END IF;
 END;
 $$;
-
 -- 5. Enable Realtime for memories so changes sync across devices.
 DO $$
 BEGIN
@@ -176,5 +167,4 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.memory_settings;
   END IF;
 END $$;
-
 ALTER TABLE public.memories ENABLE ROW LEVEL SECURITY;

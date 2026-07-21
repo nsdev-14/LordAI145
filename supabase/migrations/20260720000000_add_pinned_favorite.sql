@@ -6,6 +6,5 @@ ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS favorite BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
-
 CREATE INDEX IF NOT EXISTS conversations_user_pinned_idx
   ON public.conversations (user_id, pinned DESC, pinned_at DESC);

@@ -1,6 +1,5 @@
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS conversation_id UUID;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -16,10 +15,8 @@ BEGIN
       ON DELETE CASCADE;
   END IF;
 END $$;
-
 CREATE INDEX IF NOT EXISTS messages_conversation_created_idx
   ON public.messages(conversation_id, created_at);
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -31,7 +28,6 @@ BEGIN
       ALTER COLUMN conversation_id SET NOT NULL;
   END IF;
 END $$;
-
 DROP POLICY IF EXISTS "Users manage their own messages" ON public.messages;
 CREATE POLICY "Users manage their own messages"
   ON public.messages

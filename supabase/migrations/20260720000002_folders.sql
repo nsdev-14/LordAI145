@@ -23,12 +23,9 @@ CREATE TABLE IF NOT EXISTS public.folders (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.folders TO authenticated;
 GRANT ALL ON public.folders TO service_role;
-
 ALTER TABLE public.folders ENABLE ROW LEVEL SECURITY;
-
 -- Users can only see / modify their own folders. The WITH CHECK clause blocks
 -- inserting a folder whose user_id is not the caller's.
 CREATE POLICY "Users manage their own folders"
@@ -37,7 +34,6 @@ CREATE POLICY "Users manage their own folders"
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
-
 -- Prevent cross-user reparenting: a folder's parent (if any) must also belong
 -- to the same user. This is enforced at write time and complements the app's
 -- client-side 3-level nesting limit.
@@ -52,17 +48,13 @@ CREATE POLICY "Folder parent belongs to same user"
       WHERE p.id = parent_id AND p.user_id = auth.uid()
     )
   );
-
 CREATE INDEX IF NOT EXISTS folders_user_parent_idx
   ON public.folders (user_id, parent_id, sort_order);
-
 -- 2. conversations.folder_id ----------------------------------------------
 ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES public.folders(id) ON DELETE SET NULL;
-
 CREATE INDEX IF NOT EXISTS conversations_user_folder_idx
   ON public.conversations (user_id, folder_id, last_message_at DESC);
-
 -- 3. updated_at trigger (folders) ------------------------------------------
 CREATE OR REPLACE FUNCTION public.set_folders_updated_at()
 RETURNS TRIGGER
@@ -74,7 +66,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS set_folders_updated_at ON public.folders;
 CREATE TRIGGER set_folders_updated_at
   BEFORE UPDATE ON public.folders
